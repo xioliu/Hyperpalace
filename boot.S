@@ -6,9 +6,17 @@ _entry:
     bne .
     
     ldr x1, = vectors
-    msr vbar_el1, x1
+    msr vbar_el2, x1
     adrp x0, stack_top
+    
+    mov x1, #1
+    msr SPSEL, x1
 
 main_label:
     mov sp, x0
+    bl test
     bl main
+    
+test:
+	mrs x0, s3_0_c12_c12_0
+	ret

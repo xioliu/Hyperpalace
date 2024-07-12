@@ -8,7 +8,7 @@
 #define GIC_INTNO_PPI0                      QEMU_VIRT_GIC_INTNO_PPIO
 #define GIC_INTNO_SPI0                      QEMU_VIRT_GIC_INTNO_SPIO
 
-#define TIMER_IRQ                           27
+#define TIMER_IRQ                           26
 
 #define GIC_GICD_BASE                       GIC_BASE
 #define GIC_GICC_BASE                       (GIC_GICD_BASE + 0x10000)
@@ -109,8 +109,75 @@ Table 11-30 CPU interface register map of IHI0069F_gic_architecture_specificatio
 #define GICC_CTLR_ENABLE                    0x1
 #define GICC_CTLR_DISABLE                   0x0
 
+#define GICC_IAR_ID_OFF         			0
+#define GICC_IAR_ID_LEN 					24
+#define GICC_IAR_ID_MSK          			0xFFFFFF
+
 #define REG_GIC_GICC_CTLR                   ((volatile uint32_t *)(uintptr_t)GIC_GICC_CTLR)
 #define REG_GIC_GICC_PMR                    ((volatile uint32_t *)(uintptr_t)GIC_GICC_PMR)
+
+#define GIC_GICR_INT_PER_REG                32
+#define GIC_GICR_ICPENDR_PER_REG            32
+#define GIC_GICR_ISPENDR_PER_REG            32
+#define GIC_GICR_ICENABLER_PER_REG          32
+#define GIC_GICR_ISENABLER_PER_REG          32
+
+#define GIC_GICR_CTLR                       (GIC_GICR_BASE + 0x04)
+#define GIC_GICR_IIDR                       (GIC_GICR_BASE + 0x04)
+#define GIC_GICR_TYPER                      (GIC_GICR_BASE + 0x08)
+#define GIC_GICR_STATUSR                    (GIC_GICR_BASE + 0x10)
+#define GIC_GICR_WAKER                      (GIC_GICR_BASE + 0x14)
+#define GIC_GICR_SETLPIR                    (GIC_GICR_BASE + 0x40)
+#define GIC_GICR_CLRLPIR                    (GIC_GICR_BASE + 0x48)
+#define GIC_GICR_PROPBASER                  (GIC_GICR_BASE + 0x70)
+#define GIC_GICR_PENDBASER                  (GIC_GICR_BASE + 0x78)
+#define GIC_GICR_INVLPIR                    (GIC_GICR_BASE + 0xA0)
+#define GIC_GICR_INVALLR                    (GIC_GICR_BASE + 0xB0)
+#define GIC_GICR_SYNCR                      (GIC_GICR_BASE + 0xC0)
+#define GIC_GICRID(N)                       (GIC_GICR_BASE + 0xFFD0 + (N) * 4)
+#define GIC_GICR_IGROUPR0                   (GIC_GICR_BASE + 0x10080)
+#define GIC_GICR_ISENABLER0                 (GIC_GICR_BASE + 0x10100)
+#define GIC_GICR_ICENABLER0                 (GIC_GICR_BASE + 0x10180)
+#define GIC_GICR_ISPENDR0                   (GIC_GICR_BASE + 0x10200)
+#define GIC_GICR_ICPENDR0                   (GIC_GICR_BASE + 0x10280)
+#define GIC_GICR_ISACTIVER0                 (GIC_GICR_BASE + 0x10300)
+#define GIC_GICR_ICACTIVER0                 (GIC_GICR_BASE + 0x10380)
+#define GIC_GICR_IPRIORITYR(N)              (GIC_GICR_BASE + 0x10400 + (N) * 4)
+#define GIC_GICR_ICFGR0                     (GIC_GICR_BASE + 0x10C00)
+#define GIC_GICR_ICFGR1                     (GIC_GICR_BASE + 0x10C04)
+#define GIC_GICR_IGRPMODR0                  (GIC_GICR_BASE + 0x10D00)
+#define GIC_GICR_NSACR                      (GIC_GICR_BASE + 0x10E00)
+
+#define REG_GIC_GICR_CTLR                   ((volatile uint32_t *)(uintptr_t)GIC_GICR_CTLR)
+#define REG_GIC_GICR_IIDR                   ((volatile uint32_t *)(uintptr_t)GIC_GICR_IIDR)
+#define REG_GIC_GICR_WAKER                  ((volatile uint32_t *)(uintptr_t)GIC_GICR_WAKER)
+#define REG_GIC_GICR_IGROUPR0               ((volatile uint32_t *)(uintptr_t)GIC_GICR_IGROUPR0)
+#define REG_GIC_GICR_ISENABLER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ISENABLER0)
+#define REG_GIC_GICR_ICENABLER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICENABLER0)
+#define REG_GIC_GICR_ICPENDR0               ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICPENDR0)
+#define REG_GIC_GICR_ICACTIVER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICACTIVER0)
+#define REG_GIC_GICR_IPRIORITYR(n)          ((volatile uint32_t *)(uintptr_t)GIC_GICR_IPRIORITYR(n))
+
+#define GICR_WAKER_ProcessorSleep_BIT       (0x2U)
+#define GICR_WAKER_ChildrenASleep_BIT       (0x4U)
+
+#define icc_iar1_el1    					S3_0_C12_C12_0
+
+#define SYSREG_GEN_ACCESSORS_NAME(reg, name)                          \
+    static inline unsigned long sysreg##reg##read()                   \
+    {                                                                 \
+        unsigned long _temp;                                          \
+        __asm__ volatile("mrs %0, " XSTR(name) "\n\r" : "=r"(_temp)); \
+        return _temp;                                                 \
+    }                                                                 \
+    static inline void sysreg##reg##write(unsigned long val)          \
+    {                                                                 \
+        __asm__ volatile("msr " XSTR(name) ", %0\n\r" ::"r"(val));    \
+    }
+
+#define SYSREG_GEN_ACCESSORS(reg) SYSREG_GEN_ACCESSORS_NAME(_##reg##_, reg)
+
+SYSREG_GEN_ACCESSORS(icc_iar1_el1)
 
 void gicd_init(void);
 void gicc_init(void);
@@ -122,5 +189,10 @@ void gicd_enable_irq(uint32_t irq);
 void gicd_disable_irq(uint32_t irq);
 void gic_init(void);
 void irq_handle(exception_t *excp __attribute__((unused)));
+
+static inline uint32_t gicc_iar()
+{
+    return (uint32_t)sysreg_icc_iar1_el1_read();
+}
 
 #endif

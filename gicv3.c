@@ -33,6 +33,24 @@ void gicd_init(void)
     *REG_GIC_GICD_CTLR = GICD_CTLR_ENABLE;
 }
 
+void gicr_init(void)
+{
+    uint32_t i, nr;
+    uart_puts("gicr_init\n");
+
+    *REG_GIC_GICR_WAKER &= ~GICR_WAKER_ProcessorSleep_BIT;
+    while(*REG_GIC_GICR_WAKER & GICR_WAKER_ChildrenASleep_BIT);
+
+    nr = NUMBER(GIC_INT_MAX, GIC_GICR_INT_PER_REG);
+
+    *REG_GIC_GICR_IGROUPR0 = ~0U;
+    *REG_GIC_GICR_ICENABLER0 = ~0U;
+    *REG_GIC_GICR_ICPENDR0 = ~0U;
+    *REG_GIC_GICR_ICACTIVER0 = ~0U;
+    for(i = 0; i < nr; i++)
+        *REG_GIC_GICR_IPRIORITYR(i) = ~0U;
+}
+
 void gicc_init(void)
 {
     uart_puts("gicc_init\n");
@@ -73,7 +91,7 @@ void gicd_set_target(uint32_t irq, uint32_t pe_nr)
     offset = (irq % GIC_GICD_ITARGETSR_PER_REG) * GIC_GICD_ITARGETSR_SIZE_PER_REG;
     value = *REG_GIC_GICD_ITARGETSR(irq / GIC_GICD_ITARGETSR_PER_REG);
     value &= ~((uint32_t)0xff << offset);
-    value |= (pe_nr << offset);
+    value |= (pe_nr << offset);//pe_nr
     *REG_GIC_GICD_ITARGETSR(irq / GIC_GICD_ITARGETSR_PER_REG) = value;
 }
 
@@ -92,6 +110,21 @@ void gicd_disable_irq(uint32_t irq)
     *REG_GIC_GICD_ICENABLER(irq / GIC_GICD_ICENABLER_PER_REG) |= 1 << (irq % GIC_GICD_ICENABLER_PER_REG);
 }
 
+void gicr_clear_pending(uint32_t irq)
+{
+    *REG_GIC_GICR_ICPENDR0 |= 1 << (irq % GIC_GICR_ICPENDR_PER_REG);
+}
+
+void gicr_enable_irq(uint32_t irq)
+{
+    *REG_GIC_GICR_ISENABLER0 |= 1 << (irq % GIC_GICR_ISENABLER_PER_REG);
+}
+
+void gicr_disable_irq(uint32_t irq)
+{
+    *REG_GIC_GICR_ICENABLER0 |= 1 << (irq % GIC_GICR_ICENABLER_PER_REG);
+}
+
 /*Return 1 means a pending irq is found, otherwise 0*/
 /*TODO: now iterate from irq 0 to max, see how to improve*/
 static int gic_find_pending_irq(uint32_t *irq)
@@ -102,6 +135,9 @@ static int gic_find_pending_irq(uint32_t *irq)
         if(*REG_GIC_GICD_ISPENDR(i / GIC_GICD_ISPENDR_PER_REG) & (1 << (i % GIC_GICD_ISPENDR_PER_REG)))
         {
             *irq = i;
+            uart_puts("\npending irq ");
+            uart_puthex(i);
+            uart_puts(" found\n");
             return 1;
         }
     }
@@ -111,29 +147,37 @@ static int gic_find_pending_irq(uint32_t *irq)
 void gic_init(void)
 {
     gicd_init();
+    gicr_init();
     gicc_init();
 }
 
 void irq_handle(exception_t *excp __attribute__((unused)))
 {
-    uint32_t irq, ret;
-    uint64_t psw;
+    uint32_t irq;
+
+    uint32_t ack = gicc_iar();
+    irq = ack & GICC_IAR_ID_MSK;
+
+    uart_puts("coming irq ");
+    uart_puthex(irq);
+    uart_puts("\n");
     
-    uart_puts("irq_handle\n");
+    if (irq < GIC_INT_MAX) {
+        if(irq < GIC_INTNO_PPI0) {
+            gicd_disable_irq(irq);
+			gicd_clear_pending(irq);
+			//at this moment, only timer irq.
+			timer_handler();
+			gicd_enable_irq(irq);
+        }
+        else {
+        	gicr_disable_irq(irq);
+			gicr_clear_pending(irq);
+			//at this moment, only timer irq.
+			timer_handler();
+			gicr_enable_irq(irq);
+        }
+    }
 
-    /*save psw*/
-    psw_save(&psw);
 
-    ret = gic_find_pending_irq(&irq);
-
-    if(ret == 0)/*irq not found*/
-        goto restore_psw;
-
-    gicd_disable_irq(irq);
-    gicd_clear_pending(irq);
-    timer_handler();
-    gicd_enable_irq(irq);
-
-restore_psw:
-    psw_restore(&psw);
 }

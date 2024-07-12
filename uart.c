@@ -10,6 +10,19 @@ void uart_putc(const char c)
     *UART0DR = c;
 }
 
+void uart_puthex(uint64_t n)
+{
+	const char *hexdigits = "0123456789ABCDEF";
+
+	uart_putc('0');
+	uart_putc('x');
+	for (int i = 60; i >= 0; i -= 4){
+		uart_putc(hexdigits[(n >> i) & 0xf]);
+		if (i == 32)
+			uart_putc(' ');
+	}
+}
+
 void uart_puts(const char *s)
 {
     unsigned int i = 0;

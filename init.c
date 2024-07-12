@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "util.h"
 #include "exceptions.h"
 #include "gicv3.h"
 #include "timer.h"

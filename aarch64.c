@@ -43,7 +43,7 @@ uint32_t raw_read_cntv_ctl(void)
 {
     uint32_t cntv_ctl;
 
-    __asm__ __volatile__("mrs %0, CNTV_CTL_EL0\n\t" : "=r" (cntv_ctl) : : "memory");
+    __asm__ __volatile__("mrs %0, CNTHP_CTL_EL2\n\t" : "=r" (cntv_ctl) : : "memory");
     return cntv_ctl;
 }
 
@@ -52,8 +52,8 @@ void disable_cntv(void)
     uint32_t cntv_ctl;
 
     cntv_ctl = raw_read_cntv_ctl();
-    cntv_ctl &= ~CNTV_CTL_ENABLE;
-    __asm__ __volatile__("msr CNTV_CTL_EL0, %0\n\t" : : "r" (cntv_ctl) : "memory");
+    cntv_ctl &= ~CNTHP_CTL_ENABLE;
+    __asm__ __volatile__("msr CNTHP_CTL_EL2, %0\n\t" : : "r" (cntv_ctl) : "memory");
 }
 
 void enable_cntv(void)
@@ -61,8 +61,8 @@ void enable_cntv(void)
     uint32_t cntv_ctl;
 
     cntv_ctl = raw_read_cntv_ctl();
-    cntv_ctl |= CNTV_CTL_ENABLE;
-    __asm__ __volatile__("msr CNTV_CTL_EL0, %0\n\t" : : "r" (cntv_ctl) : "memory");
+    cntv_ctl |= CNTHP_CTL_ENABLE;
+    __asm__ __volatile__("msr CNTHP_CTL_EL2, %0\n\t" : : "r" (cntv_ctl) : "memory");
 }
 
 uint32_t raw_read_cntfrq_el0(void)
@@ -73,15 +73,15 @@ uint32_t raw_read_cntfrq_el0(void)
     return cntfrq_el0;
 }
 
-uint64_t raw_read_cntvct_el0(void)
+uint64_t raw_read_cntpct_el0(void)
 {
-    uint64_t cntvct_el0;
+    uint64_t cntpct_el0;
 
-    __asm__ __volatile__("mrs %0, CNTVCT_EL0\n\t" : "=r" (cntvct_el0) : : "memory");
-    return cntvct_el0;
+    __asm__ __volatile__("mrs %0, CNTPCT_EL0\n\t" : "=r" (cntpct_el0) : : "memory");
+    return cntpct_el0;
 }
 
 void raw_write_cntval_el0(uint64_t cntval_el0)
 {
-    __asm__ __volatile__("msr CNTV_CVAL_EL0, %0\n\t" : : "r" (cntval_el0) : "memory");
+    __asm__ __volatile__("msr CNTHP_TVAL_EL2, %0\n\t" : : "r" (cntval_el0) : "memory");
 }

@@ -1,0 +1,224 @@
+20240711
+qemu命令中，除了打开virtualization=on外，还需要指定gic-version=3，否则默认是gicv2，会导致访问GICR寄存器的时候产生中断。
+qemu-system-aarch64 -machine virt,gic-version=3 -cpu cortex-a57 -machine virtualization=on -kernel minihyper.elf -nographic -S -s
+
+
+///ELR_EL1 和 X30 的区别
+在 ARMv8 架构中，ELR_EL1 和 X30 寄存器都与函数调用和返回有关，但它们的用途有所不同：
+
+ELR_EL1 是一个系统寄存器，用于保存异常返回地址。当处理器发生异常时，返回地址将保存在异常级别对应的 ELR 中。例如，当处理器将异常处理交给 EL1 处理时，会将异常返回地址保存在 ELR_EL1 中。在异常返回时，程序计数器（PC）将恢复到存储在 ELR 中的地址。
+X30 是一个通用寄存器，也被称为链接寄存器（Link Register）。在进行函数调用时，X30 用于存储函数返回地址。当一个函数被调用时，处理器会将返回地址（即调用指令后面的地址）保存在 X30 中。当函数执行完毕后，处理器可以从 X30 中获取返回地址，然后跳转回去继续执行。
+总的来说，ELR_EL1 和 X30 都用于保存返回地址，但 ELR_EL1 用于异常返回，而 X30 用于函数返回。
+
+
+在 ARMv8 架构中，通用寄存器的分配遵循 ARM 的 ABI（Application Binary Interface）规定的标准。以下是一些主要的规定：
+
+参数寄存器 (X0-X7)：这些寄存器用于向函数传递参数并返回结果。它们可以用作临时寄存器，也可以用作调用者保存的寄存器变量，这些变量可以保存函数内的中间值，以及对其他函数的调用之间的中间值。
+调用方保存的临时寄存器 (X9-X15)：如果调用方需要在调用另一个函数时保留这些寄存器中的值，那么调用方必须将受影响的寄存器保存在自己的堆栈帧中。
+被调函数保持的寄存器 (X19-X29)：这些寄存器保存在被调用帧中。它们可以在被调方中修改，只要它们在返回之前被保存和恢复即可。
+专用寄存器 (X8、X16-X18、X29、X30)：这些寄存器有特殊的用途。例如，X8 是间接结果寄存器，用于传递间接结果的地址位置。X16 和 X17 是内部过程调用临时寄存器。X29 是帧指针寄存器，X30 是链接寄存器。
+
+
+///
+You
+asm volatile("at s1e2w, %0" ::"r"(vaddr));
+
+Copilot
+这行代码是内联汇编，用于在C或C++代码中直接插入汇编代码。asm volatile是GCC的内联汇编语法，volatile表示这段汇编代码不应被编译器优化。
+
+"at s1e2w, %0"是汇编指令。at是ARM架构的地址翻译指令，用于查询虚拟地址对应的物理地址。s1e2w是指令的操作类型，表示从EL1（Exception Level 1）的虚拟地址翻译到物理地址，且访问类型为写（write）。%0是占位符，表示输入操作数的位置。
+
+::"r"(vaddr)是输入约束，表示这段汇编代码有一个输入，即变量vaddr。"r"表示输入应放在一个通用寄存器中。
+
+总的来说，这行代码的作用是查询变量vaddr对应的物理地址，并将结果放在系统寄存器PAR_EL1中。这在处理虚拟内存和物理内存的映射关系时非常有用。希望这个解释对你有所帮助！
+
+///
+You
+gdb中如何快速切换到之前的指令
+
+Copilot
+在GDB中，您可以使用reverse命令来回到之前的指令。这是一种被称为“反向调试”的功能，它允许您在程序的执行历史中向后移动。
+
+以下是一些基本的反向调试命令：
+
+reverse-step 或 rs：这将使程序反向执行一步。如果当前指令是函数调用，那么reverse-step将返回到调用该函数的位置。
+reverse-next 或 rn：这将使程序反向执行一步，但它会跳过函数调用，就像next命令在正向调试中所做的那样。
+reverse-continue 或 rc：这将使程序继续反向执行，直到达到一个断点，或者用户通过按下Ctrl+C来中断它。
+请注意，反向调试需要特定的GDB版本和特定的目标架构支持。并非所有系统都支持反向调试。您可以通过在GDB中输入help target来查看您的系统是否支持反向调试。
+
+如果您的系统不支持反向调试，您可能需要保存程序的状态，以便稍后恢复。这可以通过使用checkpoint命令来完成，该命令会保存程序的当前状态。然后，您可以使用restart命令加上检查点的编号来恢复到该状态。例如：
+
+(gdb) checkpoint
+(gdb) restart 1
+
+这将恢复到第一个检查点的状态。请注意，这种方法可能需要大量的内存，因为GDB需要保存程序的每个检查点的完整状态。在内存有限的系统上，可能无法使用此功能。此外，这并不真正提供反向执行的能力，但它可以让您返回到程序之前的状态，这在某些情况下可能足够了。如果您需要反向执行的完整功能，那么您可能需要寻找支持这种功能的调试器，如rr。
+
+///
+You
+gdb info locals hex value
+Copilot
+在 GDB 中，如果你想以 16 进制格式查看所有本地变量的值，你可以使用 set output-radix 16 命令来改变输出的基数1。这将会使得 info locals 命令输出的所有变量值都以 16 进制格式显示。
+
+这是一个简单的例子：
+
+(gdb) set output-radix 16
+(gdb) info locals
+
+这将会设置输出基数为 16 进制，然后列出所有的本地变量及其值1。
+
+请注意，这个设置会影响到所有的输出，包括 print 命令的输出。如果你想要恢复到默认的 10 进制输出，你可以使用 set output-radix 10 命令1。
+
+///
+You
+.macro __init_el2_hcrx
+	mrs	x0, id_aa64mmfr1_el1
+	ubfx	x0, x0, #ID_AA64MMFR1_EL1_HCX_SHIFT, #4
+	cbz	x0, .Lskip_hcrx_\@
+	mov_q	x0, HCRX_HOST_FLAGS
+	msr_s	SYS_HCRX_EL2, x0
+.Lskip_hcrx_\@:
+.endm
+Copilot
+这段代码是一个名为__init_el2_hcrx的宏定义，用于初始化ARM处理器的Hypervisor Configuration Extended Register (HCRX_EL2)。
+
+让我们逐行解释一下：
+
+.macro __init_el2_hcrx：这是宏的开始，定义了一个名为__init_el2_hcrx的宏。
+mrs	x0, id_aa64mmfr1_el1：这行代码将id_aa64mmfr1_el1寄存器的值移动到x0寄存器。id_aa64mmfr1_el1寄存器包含了关于物理地址和虚拟地址大小的信息。
+ubfx	x0, x0, #ID_AA64MMFR1_EL1_HCX_SHIFT, #4：这行代码使用ubfx指令（无符号位字段提取）从x0寄存器中提取出特定的位字段。ID_AA64MMFR1_EL1_HCX_SHIFT定义了要提取的位字段的开始位置，#4定义了要提取的位的数量。
+cbz	x0, .Lskip_hcrx_\@：这行代码使用cbz指令（比较并跳转如果零）。如果x0寄存器的值为零，那么程序将跳转到.Lskip_hcrx_\@标签处继续执行。
+mov_q	x0, HCRX_HOST_FLAGS：这行代码将HCRX_HOST_FLAGS的值移动到x0寄存器。HCRX_HOST_FLAGS是一个预定义的值，表示HCRX_EL2寄存器的初始值。
+msr_s	SYS_HCRX_EL2, x0：这行代码将x0寄存器的值写入HCRX_EL2寄存器。msr_s是“Move System Register”的缩写，它用于将一个寄存器的值写入系统寄存器。
+.Lskip_hcrx_\@:：这是一个标签，如果x0寄存器的值为零，程序将跳转到这里继续执行。
+.endm：这是宏的结束。
+总的来说，这个宏的作用是根据id_aa64mmfr1_el1寄存器的值来初始化HCRX_EL2寄存器。如果id_aa64mmfr1_el1寄存器的特定位字段为零，那么就跳过初始化。
+这通常是在系统启动时，进入更高特权级别（例如Hypervisor模式）之前的准备步骤。在这种模式下，硬件会提供额外的资源管理和隔离，这对于运行虚拟机来说是必要的。
+但是，具体的HCRX_HOST_FLAGS值和宏的使用方式可能会根据具体的硬件和操作系统设计而变化。这段代码应该是嵌入到更大的启动代码中的一部分。
+
+///
+你
+static inline void arm_at_s12e1w(vaddr_t vaddr) {
+     asm volatile("at s12e1w, %0" ::"r"(vaddr));
+}
+Copilot
+正在为你生成答案…
+
+这段代码是一个内联函数，用于在ARM架构的处理器上执行AT S12E1W指令。这是一种地址翻译（Address Translation，AT）指令，用于执行系统级别的内存管理任务。
+
+函数的参数是一个虚拟地址（vaddr_t vaddr），这个地址将被用作AT S12E1W指令的操作数。
+
+AT S12E1W指令的功能是查询一个虚拟地址在Stage 1和Stage 2的EL1&EL0模式下的写权限。如果查询的地址可以被访问，那么相应的PAR_EL1寄存器会被设置为物理地址。
+如果查询的地址不可以被访问，那么PAR_EL1寄存器的最高位会被设置为1，表示出错。
+
+这段代码使用了GCC的内联汇编语法，asm volatile表示这是一段内联汇编代码，volatile关键字告诉编译器不要优化这段代码。"at s12e1w, %0" ::"r"(vaddr)是内联汇编的具体指令，%0是一个占位符，代表了后面的输入操作数（"r"(vaddr)），"r"表示这个操作数是一个寄存器，vaddr是这个寄存器的值。
+
+总的来说，这段代码的功能是查询一个虚拟地址在特定模式下的写权限。
+
+///
+你
+static inline void arm_at_s1e2w(vaddr_t vaddr) {
+     asm volatile("at s1e2w, %0" ::"r"(vaddr));
+}
+Copilot
+正在为你生成答案…
+
+这段代码是一个内联函数，用于在ARM架构的处理器上执行AT S1E2W指令。这是一种地址翻译（Address Translation，AT）指令，用于执行系统级别的内存管理任务。
+
+函数的参数是一个虚拟地址（vaddr_t vaddr），这个地址将被用作AT S1E2W指令的操作数。
+
+AT S1E2W指令的功能是查询一个虚拟地址在Stage 2的EL2模式下的写权限。如果查询的地址可以被访问，那么相应的PAR_EL1寄存器会被设置为物理地址。
+如果查询的地址不可以被访问，那么PAR_EL1寄存器的最高位会被设置为1，表示出错。
+
+这段代码使用了GCC的内联汇编语法，asm volatile表示这是一段内联汇编代码，volatile关键字告诉编译器不要优化这段代码。"at s1e2w, %0" ::"r"(vaddr)是内联汇编的具体指令，%0是一个占位符，代表了后面的输入操作数（"r"(vaddr)），"r"表示这个操作数是一个寄存器，vaddr是这个寄存器的值。
+
+总的来说，这段代码的功能是查询一个虚拟地址在特定模式下的写权限。
+
+///
+你
+static inline void arm_tlbi_vmalls12e1is() {
+    asm volatile("tlbi vmalls12e1is");
+}
+
+Copilot
+正在为你生成答案…
+
+这段代码是一个内联函数，用于在ARM架构的处理器上执行TLBI VMALLS12E1IS指令。这是一种TLB（Translation Lookaside Buffer）无效化指令，用于执行系统级别的内存管理任务。
+
+TLBI VMALLS12E1IS指令的功能是无效化所有在Stage 1和Stage 2的EL1&EL0模式下的虚拟地址映射。 这意味着处理器的TLB将被清空，所有之前缓存的虚拟地址到物理地址的映射都将被删除。
+当下一次访问这些地址时，处理器将需要重新执行地址翻译过程，从页表中查找相应的物理地址。
+
+这段代码使用了GCC的内联汇编语法，asm volatile表示这是一段内联汇编代码，volatile关键字告诉编译器不要优化这段代码。"tlbi vmalls12e1is"是内联汇编的具体指令。
+
+总的来说，这段代码的功能是无效化处理器的TLB，清空所有虚拟地址到物理地址的映射。
+
+///
+你
+gdb 单步到函数退出
+Copilot
+正在为你生成答案…
+
+在GDB中，你可以使用finish命令来单步执行到当前函数的退出。这个命令会让程序继续运行，直到当前函数完成为止，然后停在调用该函数的那一行。
+
+这是一个例子：
+
+(gdb) finish
+
+当你执行finish命令后，GDB会显示函数的返回值。这对于调试和理解程序的执行过程非常有用。
+
+请注意，如果你的程序在执行finish命令后遇到了断点，那么程序会在那个断点处停止，而不是在函数退出的地方。
+
+///
+You
+Symbol table '.symtab' contains 1622 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+ 1333: 0000fd80000001a0     0 NOTYPE  GLOBAL DEFAULT    1 boot_arch_profile_init
+ 1307: 0000fd8000000000     0 NOTYPE  GLOBAL DEFAULT    1 _el2_entry
+
+为什么在汇编.S文件中定义的函数boot_arch_profile_init和_el2_entry在链接后经readelf处理后显示的类型是NOTYPE，而在c文件中定义的函数类型都是FUNC？realelf的处理指令如下：
+$(bin_dir)/$(PROJECT_NAME).elf: $(gens) $(objs-y) $(ld_script_temp)
+	@echo "Linking			$(patsubst $(cur_dir)/%, %, $@)"
+	@$(ld) $(LDFLAGS) -T$(ld_script_temp) $(objs-y) -o $@
+	@$(objdump) -S --wide $@ > $(basename $@).asm
+	@$(readelf) -a --wide $@ > $@.txt
+Copilot
+这是因为在链接过程中，汇编语言和C语言的符号处理方式有所不同。
+
+在C语言中，函数默认被视为FUNC类型的符号。这是因为C编译器知道这些符号代表的是函数，所以在生成符号表时，它会将这些符号的类型设置为FUNC。
+
+然而，在汇编语言中，编译器并不知道符号代表的是什么。汇编语言只是一种机器语言的人类可读表示，它没有像C语言那样的类型系统。因此，当汇编器遇到一个符号时，它只是简单地将其添加到符号表中，而不会给它分配任何特定的类型。这就是为什么在链接后，汇编.S文件中定义的函数boot_arch_profile_init和_el2_entry在经过readelf处理后显示的类型是NOTYPE。
+
+这并不会影响程序的执行，因为在运行时，程序并不关心符号的类型。符号的类型主要是用于调试和反向工程等目的。在大多数情况下，你可以忽略这个区别。但是，如果你正在进行底层的系统编程，或者正在编写需要精确控制符号表的代码，那么了解这个区别就很重要了。希望这个解释对你有所帮助！
+
+You
+那要怎么修改才能让汇编文件中的函数变成FUNC类型呢？现在的汇编文件中已经做了如下声明。
+.globl _reset_handler
+.globl _el2_entry
+_el2_entry:
+_reset_handler:
+Copilot
+在汇编语言中，你可以使用.type指令来显式地设置符号的类型。例如，如果你想将_el2_entry和_reset_handler设置为FUNC类型，你可以这样做：
+
+.globl _reset_handler
+.globl _el2_entry
+
+.type _el2_entry, @function
+_el2_entry:
+    ; function body...
+
+.type _reset_handler, @function
+_reset_handler:
+    ; function body...
+
+///
+You
+gdb中如何显示符号和地址
+Copilot
+在GDB中，你可以使用info命令来显示符号和地址。以下是一些常用的info命令：
+
+info functions：这个命令会列出所有的函数名和它们的地址。
+info variables：这个命令会列出所有的全局和静态变量。
+info address 符号名：这个命令会显示指定符号的地址。
+info symbol 地址：这个命令会显示给定地址的符号名。
+例如，如果你想查看函数main的地址，你可以使用info address main命令。如果你有一个地址，比如0x4005f6，并且你想知道这个地址对应的符号，你可以使用info symbol 0x4005f6命令。
+
+请注意，这些命令只能在你已经加载了带有调试信息的程序后使用。如果你的程序没有调试信息，那么GDB可能无法显示所有的符号和地址。你可以在编译你的程序时使用-g选项来生成调试信息。

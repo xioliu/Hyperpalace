@@ -12,6 +12,7 @@
 #define UART_FR_RI      (1 << 8)
 
 void uart_putc(const char c);
+void uart_puthex(uint64_t n);
 void uart_puts(const char *s);
 
 #endif
