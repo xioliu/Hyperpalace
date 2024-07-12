@@ -1,7 +1,24 @@
 20240711
 qemu命令中，除了打开virtualization=on外，还需要指定gic-version=3，否则默认是gicv2，会导致访问GICR寄存器的时候产生中断。
 qemu-system-aarch64 -machine virt,gic-version=3 -cpu cortex-a57 -machine virtualization=on -kernel minihyper.elf -nographic -S -s
+gicv2寄存器都是使用mmio的方式访问，gicv3还可以通过系统寄存器访问。下面这样的代码，只能用于gicv3的配置下。
+#define icc_iar1_el1    					S3_0_C12_C12_0
 
+#define SYSREG_GEN_ACCESSORS_NAME(reg, name)                          \
+    static inline unsigned long sysreg##reg##read()                   \
+    {                                                                 \
+        unsigned long _temp;                                          \
+        __asm__ volatile("mrs %0, " XSTR(name) "\n\r" : "=r"(_temp)); \
+        return _temp;                                                 \
+    }                                                                 \
+    static inline void sysreg##reg##write(unsigned long val)          \
+    {                                                                 \
+        __asm__ volatile("msr " XSTR(name) ", %0\n\r" ::"r"(val));    \
+    }
+
+#define SYSREG_GEN_ACCESSORS(reg) SYSREG_GEN_ACCESSORS_NAME(_##reg##_, reg)
+
+SYSREG_GEN_ACCESSORS(icc_iar1_el1)
 
 ///ELR_EL1 和 X30 的区别
 在 ARMv8 架构中，ELR_EL1 和 X30 寄存器都与函数调用和返回有关，但它们的用途有所不同：

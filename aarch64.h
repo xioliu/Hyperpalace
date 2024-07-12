@@ -7,7 +7,7 @@
 #define DAIF_IRQ_BIT    (1<<1)
 #define DAIF_FIQ_BIT    (1<<0)
 
-#define CNTHP_CTL_ENABLE (0<<1)
+#define CNTHP_CTL_ENABLE (1<<0)
 
 #define wfi()           asm volatile("wfi" : : : "memory")
 
