@@ -89,7 +89,7 @@ vectors:
 
 /*EL2 with spx*/
     VECTOR_ENTRY_ALIGN
-    b _curr_el_spx_irq
+    b .
     VECTOR_ENTRY_ALIGN
     b _curr_el_spx_irq
     VECTOR_ENTRY_ALIGN

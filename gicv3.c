@@ -2,10 +2,12 @@
 #include "board-qemu.h"
 #include "util.h"
 #include "exceptions.h"
+#include "sysregs.h"
 #include "gicv3.h"
 #include "psw.h"
 #include "timer.h"
 #include "uart.h"
+#include "aarch64.h"
 
 void gicd_init(void)
 {
@@ -30,7 +32,7 @@ void gicd_init(void)
     for(i = 0; i < nr; i++)
         *REG_GIC_GICD_IPRIORITYR(i) = ~(uint32_t)0;
 
-    *REG_GIC_GICD_CTLR = GICD_CTLR_ENABLE;
+    *REG_GIC_GICD_CTLR = GICD_CTLR_ARE_NS_BIT | GICD_CTLR_ENA_BIT;
 }
 
 void gicr_init(void)
@@ -54,12 +56,25 @@ void gicr_init(void)
 void gicc_init(void)
 {
     uart_puts("gicc_init\n");
-    *REG_GIC_GICC_CTLR &= GICC_CTLR_DISABLE;
 
-    /*Support lagest priority number*/
-    *REG_GIC_GICC_PMR = 0xff;
+    uint32_t lr_num = gich_num_lrs();
+    sysreg_icc_sre_el2_write(ICC_SRE_SRE_BIT | ICC_SRE_ENB_BIT);
+    ISB();
+    
+    for (uint32_t i = 0; i < lr_num; i++) {
+        gich_write_lr(i, 0);
+    }
 
-    *REG_GIC_GICC_CTLR |= GICC_CTLR_ENABLE;
+    sysreg_icc_pmr_el1_write(0xff);
+    sysreg_icc_bpr1_el1_write(0x0);
+    sysreg_icc_ctlr_el1_write(ICC_CTLR_EOIMode_BIT);
+    sysreg_ich_hcr_el2_write(sysreg_ich_hcr_el2_read() | ICH_HCR_LRENPIE_BIT);
+    sysreg_icc_igrpen1_el1_write(ICC_IGRPEN_EL1_ENB_BIT);
+}
+
+uint32_t gich_num_lrs(void)
+{
+    return ((sysreg_ich_vtr_el2_read() & ICH_VTR_MSK) >> ICH_VTR_OFF) + 1;
 }
 
 void gicd_irq_config(uint32_t irq, uint32_t cfg)
@@ -110,6 +125,40 @@ void gicd_disable_irq(uint32_t irq)
     *REG_GIC_GICD_ICENABLER(irq / GIC_GICD_ICENABLER_PER_REG) |= 1 << (irq % GIC_GICD_ICENABLER_PER_REG);
 }
 
+void gicr_set_priority(uint32_t irq, uint32_t pri)
+{
+    uint32_t offset, value;
+
+    offset = (irq % GIC_GICR_INTPRIORITY_PER_REG) * GIC_GICR_INTPRIORITY_SIZE_PER_REG;
+    value = *REG_GIC_GICR_IPRIORITYR(irq / GIC_GICR_INTPRIORITY_PER_REG);
+    value &= ~((uint32_t)0xff << offset);
+    value |= (pri << offset);
+    *REG_GIC_GICR_IPRIORITYR(irq / GIC_GICR_INTPRIORITY_PER_REG) = value;
+}
+
+
+void gicr_sgi_config(uint32_t irq, uint32_t cfg)
+{
+    uint32_t offset, value;
+
+    offset = (irq % GIC_GICR_ICFGR_PER_REG) * GIC_GICR_ICFGR_BITS_PER_REG;
+    value = *REG_GIC_GICR_ICFGR0;
+    value &= ~((uint32_t)0x3 << offset);
+    value |= (cfg << offset);
+    *REG_GIC_GICR_ICFGR0 = value;
+}
+
+void gicr_ppi_config(uint32_t irq, uint32_t cfg)
+{
+    uint32_t offset, value;
+
+    offset = ((irq - GIC_SGI_MAX)% GIC_GICR_ICFGR_PER_REG) * GIC_GICR_ICFGR_BITS_PER_REG;
+    value = *REG_GIC_GICR_ICFGR1;
+    value &= ~((uint32_t)0x3 << offset);
+    value |= (cfg << offset);
+    *REG_GIC_GICR_ICFGR1 = value;
+}
+
 void gicr_clear_pending(uint32_t irq)
 {
     *REG_GIC_GICR_ICPENDR0 |= 1 << (irq % GIC_GICR_ICPENDR_PER_REG);
@@ -127,20 +176,46 @@ void gicr_disable_irq(uint32_t irq)
 
 /*Return 1 means a pending irq is found, otherwise 0*/
 /*TODO: now iterate from irq 0 to max, see how to improve*/
-static int gic_find_pending_irq(uint32_t *irq)
+static int gicd_find_pending_irq(uint32_t *irq)
 {
     uint32_t i;
+    
+    uart_puts("\ngicd pending irq ");
+    
     for(i = 0; i < GIC_INT_MAX; i++)
     {
         if(*REG_GIC_GICD_ISPENDR(i / GIC_GICD_ISPENDR_PER_REG) & (1 << (i % GIC_GICD_ISPENDR_PER_REG)))
         {
             *irq = i;
-            uart_puts("\npending irq ");
             uart_puthex(i);
             uart_puts(" found\n");
             return 1;
         }
     }
+    
+    uart_puts("not found\n");
+    return 0;
+}
+
+static int gicr_find_pending_irq(uint32_t *irq)
+{
+    uint32_t i;
+    uint32_t ispendr0 = *REG_GIC_GICR_ISPENDR0;
+    
+    uart_puts("\ngicr pending irq ");
+    
+    for(i = 0; i < GIC_PPI_MAX; i++)
+    {
+        if(ispendr0 & (1 << (i % GIC_GICR_ISPENDR_PER_REG)))
+        {
+            *irq = i;
+            uart_puthex(i);
+            uart_puts(" found\n");
+            return 1;
+        }
+    }
+    
+    uart_puts("not found\n");
     return 0;
 }
 
@@ -151,33 +226,21 @@ void gic_init(void)
     gicc_init();
 }
 
-void irq_handle(exception_t *excp __attribute__((unused)))
+void gic_handle(exception_t *excp __attribute__((unused)))
 {
-    uint32_t irq;
+    uint32_t irq, ack;
 
-    uint32_t ack = gicc_iar();
+    ack = gicc_iar();
     irq = ack & GICC_IAR_ID_MSK;
 
-    uart_puts("coming irq ");
-    uart_puthex(irq);
-    uart_puts("\n");
-    
     if (irq < GIC_INT_MAX) {
-        if(irq < GIC_INTNO_PPI0) {
-            gicd_disable_irq(irq);
-			gicd_clear_pending(irq);
-			//at this moment, only timer irq.
-			timer_handler();
-			gicd_enable_irq(irq);
-        }
-        else {
-        	gicr_disable_irq(irq);
-			gicr_clear_pending(irq);
-			//at this moment, only timer irq.
-			timer_handler();
-			gicr_enable_irq(irq);
-        }
+		gicr_disable_irq(irq);
+		gicr_clear_pending(irq);
+		//at this moment, only timer irq.
+		timer_handler();
+		gicr_enable_irq(irq);
     }
 
-
+    gicc_eoir(ack);
+    gicc_dir(ack);
 }

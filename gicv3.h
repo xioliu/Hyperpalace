@@ -2,6 +2,8 @@
 #define __GICV3_H
 
 #define GIC_BASE                            QEMU_VIRT_GIC_BASE
+#define GIC_SGI_MAX							16
+#define GIC_PPI_MAX							32
 #define GIC_INT_MAX                         QEMU_VIRT_GIC_INT_MAX
 #define GIC_PRIO_MAX                        QEMU_VIRT_GIC_PRIO_MAX
 #define GIC_INTNO_SGI0                      QEMU_VIRT_GIC_INTNO_SGIO
@@ -83,9 +85,13 @@ Table 11-25 Distributor register map of IHI0069F_gic_architecture_specification.
 
 #define GICD_CTLR_ENABLE                    0x1
 #define GICD_CTLR_DISABLE                   0x0
+#define GICD_CTLR_ENA_BIT         			0x2
+#define GICD_CTLR_ARE_NS_BIT      			0x20
 
 #define GIC_GICD_ICFGR_LEVEL                0x0
 #define GIC_GICD_ICFGR_EDGE                 0x1
+#define GIC_GICR_ICFGR_LEVEL                0x0
+#define GIC_GICR_ICFGR_EDGE                 0x1
 /*
 Table 11-30 CPU interface register map of IHI0069F_gic_architecture_specification.pdf
 */
@@ -116,6 +122,27 @@ Table 11-30 CPU interface register map of IHI0069F_gic_architecture_specificatio
 #define REG_GIC_GICC_CTLR                   ((volatile uint32_t *)(uintptr_t)GIC_GICC_CTLR)
 #define REG_GIC_GICC_PMR                    ((volatile uint32_t *)(uintptr_t)GIC_GICC_PMR)
 
+#define ICC_CTLR_EOIMode_BIT     			(0x1ULL << 1)
+#define ICC_SGIR_SGIINTID_OFF    			24
+#define ICC_SGIR_SGIINTID_LEN    			4
+#define ICC_SGIR_SGIINTID(sgir)  			((sgir & 0x0f000000ULL) >> 24)
+#define ICC_SGIR_IRM_BIT         			(1ULL << 40)
+#define ICC_SGIR_TRGLSTFLT_OFF   			0
+#define ICC_SGIR_TRGLSTFLT_LEN   			16
+#define ICC_SGIR_TRGLSTFLT_MSK   			0xFFFF
+#define ICC_SGIR_TRGLSTFLT(sgir) 			(sgir & 0xFFFF)
+#define ICC_SGIR_AFF1_OFFSET     			(16)
+
+#define ICC_SRE_ENB_BIT          			0x8
+#define ICC_SRE_DIB_BIT          			0x4
+#define ICC_SRE_DFB_BIT          			0x2
+#define ICC_SRE_SRE_BIT          			0x1
+#define ICC_IGRPEN_EL1_ENB_BIT   			0x1
+
+#define GIC_GICR_INTPRIORITY_PER_REG        4
+#define GIC_GICR_INTPRIORITY_SIZE_PER_REG   8
+#define GIC_GICR_ICFGR_PER_REG              16
+#define GIC_GICR_ICFGR_BITS_PER_REG         2
 #define GIC_GICR_INT_PER_REG                32
 #define GIC_GICR_ICPENDR_PER_REG            32
 #define GIC_GICR_ISPENDR_PER_REG            32
@@ -154,45 +181,112 @@ Table 11-30 CPU interface register map of IHI0069F_gic_architecture_specificatio
 #define REG_GIC_GICR_IGROUPR0               ((volatile uint32_t *)(uintptr_t)GIC_GICR_IGROUPR0)
 #define REG_GIC_GICR_ISENABLER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ISENABLER0)
 #define REG_GIC_GICR_ICENABLER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICENABLER0)
+#define REG_GIC_GICR_ISPENDR0               ((volatile uint32_t *)(uintptr_t)GIC_GICR_ISPENDR0)
 #define REG_GIC_GICR_ICPENDR0               ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICPENDR0)
 #define REG_GIC_GICR_ICACTIVER0             ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICACTIVER0)
 #define REG_GIC_GICR_IPRIORITYR(n)          ((volatile uint32_t *)(uintptr_t)GIC_GICR_IPRIORITYR(n))
+#define REG_GIC_GICR_ICFGR0                 ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICFGR0)
+#define REG_GIC_GICR_ICFGR1                 ((volatile uint32_t *)(uintptr_t)GIC_GICR_ICFGR1)
+
+#define GIC_GICR_ISPENDR_PER_REG            32
 
 #define GICR_WAKER_ProcessorSleep_BIT       (0x2U)
 #define GICR_WAKER_ChildrenASleep_BIT       (0x4U)
 
-#define icc_iar1_el1    					S3_0_C12_C12_0
+#define GICH_HCR_LRENPIE_BIT   				(1U << 2)
+#define ICH_HCR_LRENPIE_BIT    				GICH_HCR_LRENPIE_BIT
 
-#define SYSREG_GEN_ACCESSORS_NAME(reg, name)                          \
-    static inline unsigned long sysreg##reg##read()                   \
-    {                                                                 \
-        unsigned long _temp;                                          \
-        __asm__ volatile("mrs %0, " XSTR(name) "\n\r" : "=r"(_temp)); \
-        return _temp;                                                 \
-    }                                                                 \
-    static inline void sysreg##reg##write(unsigned long val)          \
-    {                                                                 \
-        __asm__ volatile("msr " XSTR(name) ", %0\n\r" ::"r"(val));    \
-    }
+#define GICH_VTR_OFF           				0
+#define GICH_VTR_LEN           				6
+#define GICH_VTR_MSK           				((1 << (GICH_VTR_LEN - GICH_VTR_OFF)) - 1)
 
-#define SYSREG_GEN_ACCESSORS(reg) SYSREG_GEN_ACCESSORS_NAME(_##reg##_, reg)
-
-SYSREG_GEN_ACCESSORS(icc_iar1_el1)
+#define ICH_VTR_OFF            				GICH_VTR_OFF
+#define ICH_VTR_LEN            				GICH_VTR_LEN
+#define ICH_VTR_MSK            				GICH_VTR_MSK
 
 void gicd_init(void);
+void gicR_init(void);
 void gicc_init(void);
+
 void gicd_irq_config(uint32_t irq, uint32_t cfg);
 void gicd_set_priority(uint32_t irq, uint32_t pri);
 void gicd_set_target(uint32_t irq, uint32_t pe_nr);
 void gicd_clear_pending(uint32_t irq);
 void gicd_enable_irq(uint32_t irq);
 void gicd_disable_irq(uint32_t irq);
+
+void gicr_sgi_config(uint32_t irq, uint32_t cfg);
+void gicr_ppi_config(uint32_t irq, uint32_t cfg);
+void gicr_set_priority(uint32_t irq, uint32_t pri);
+void gicr_set_target(uint32_t irq, uint32_t pe_nr);
+void gicr_clear_pending(uint32_t irq);
+void gicr_enable_irq(uint32_t irq);
+void gicr_disable_irq(uint32_t irq);
+
 void gic_init(void);
-void irq_handle(exception_t *excp __attribute__((unused)));
+void gic_handle(exception_t *excp __attribute__((unused)));
+
+uint32_t gich_num_lrs(void);
 
 static inline uint32_t gicc_iar()
 {
     return (uint32_t)sysreg_icc_iar1_el1_read();
+}
+
+static inline void gich_write_lr(uint32_t i, uint64_t val)
+{
+    switch (i) {
+        case 0:
+            sysreg_ich_lr0_el2_write(val);
+            break;
+        case 1:
+            sysreg_ich_lr1_el2_write(val);
+            break;
+        case 2:
+            sysreg_ich_lr2_el2_write(val);
+            break;
+        case 3:
+            sysreg_ich_lr3_el2_write(val);
+            break;
+        case 4:
+            sysreg_ich_lr4_el2_write(val);
+            break;
+        case 5:
+            sysreg_ich_lr5_el2_write(val);
+            break;
+        case 6:
+            sysreg_ich_lr6_el2_write(val);
+            break;
+        case 7:
+            sysreg_ich_lr7_el2_write(val);
+            break;
+        case 8:
+            sysreg_ich_lr8_el2_write(val);
+            break;
+        case 9:
+            sysreg_ich_lr9_el2_write(val);
+            break;
+        case 10:
+            sysreg_ich_lr10_el2_write(val);
+            break;
+        case 11:
+            sysreg_ich_lr11_el2_write(val);
+            break;
+        case 12:
+            sysreg_ich_lr12_el2_write(val);
+            break;
+        case 13:
+            sysreg_ich_lr13_el2_write(val);
+            break;
+        case 14:
+            sysreg_ich_lr14_el2_write(val);
+            break;
+        case 15:
+            sysreg_ich_lr15_el2_write(val);
+            break;
+        default:
+            break;
+    }
 }
 
 #endif

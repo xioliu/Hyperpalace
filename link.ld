@@ -1,10 +1,10 @@
 ENTRY(_entry)
 
-STACKTOP = 0X41000000;
+STACKTOP = 0x41000000;
 
 SECTIONS
 {
-    . = 0X40000000;
+    . = 0x40000000;
     __start = .;
 
     __text_start = .;

@@ -9,7 +9,7 @@ OBJDUMP = ${CROSS}objdump
 CFLAGS = -mcpu=cortex-a57 -Wall -Wextra -g
 ASM_FLAGS = -mcpu=cortex-a57 -g
 
-OBJS = boot.o vector.o main.o init.o aarch64.o exceptions.o psw.o timer.o uart.o gicv3.o
+OBJS = boot.o vector.o main.o init.o aarch64.o exceptions.o psw.o timer.o uart.o gicv3.o vmm.o
 
 all:$(TARGET)
 

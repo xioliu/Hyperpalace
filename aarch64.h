@@ -7,11 +7,13 @@
 #define DAIF_IRQ_BIT    (1<<1)
 #define DAIF_FIQ_BIT    (1<<0)
 
-#define CNTHP_CTL_ENABLE (1<<0)
+#define CNTHP_CTL_ENABLE ((0<<1) | (1<<0))
 
 #define wfi()           asm volatile("wfi" : : : "memory")
+#define ISB()      		asm volatile("isb\n\t" ::: "memory")
 
 uint32_t raw_read_current_el(void);
+uint32_t get_current_el(void);
 uint32_t raw_read_daif(void);
 void raw_write_daif(uint32_t daif);
 void disable_irq(void);
