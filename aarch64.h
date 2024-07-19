@@ -23,6 +23,6 @@ void disable_cntv(void);
 void enable_cntv(void);
 uint32_t raw_read_cntfrq_el0(void);
 uint64_t raw_read_cntpct_el0(void);
-void raw_write_cntval_el0(uint64_t cntval_el0);
+void raw_write_cntval_el2(uint64_t cntval_el2);
 
 #endif

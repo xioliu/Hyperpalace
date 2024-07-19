@@ -81,7 +81,7 @@ uint64_t raw_read_cntpct_el0(void)
     return cntpct_el0;
 }
 
-void raw_write_cntval_el0(uint64_t cntval_el0)
+void raw_write_cntval_el2(uint64_t cntval_el2)
 {
-    __asm__ __volatile__("msr CNTHP_TVAL_EL2, %0\n\t" : : "r" (cntval_el0) : "memory");
+    __asm__ __volatile__("msr CNTHP_CVAL_EL2, %0\n\t" : : "r" (cntval_el2) : "memory");
 }

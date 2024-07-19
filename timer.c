@@ -21,16 +21,9 @@ void timer_handler(void)
 
     current_cnt = raw_read_cntpct_el0();
     next_cnt = current_cnt + TIMER_TIMEOUT * cntfrq;
-    raw_write_cntval_el0(next_cnt);
+    raw_write_cntval_el2(next_cnt);
 
     enable_cntv();
-    
-    uart_puts("\ncurrent_cnt =");
-    uart_puthex(current_cnt);
-    uart_puts("\n");
-    uart_puts("\nnext_cnt =");
-    uart_puthex(next_cnt);
-    uart_puts("\n");
 }
 
 void timer_init(void)
@@ -43,7 +36,7 @@ void timer_init(void)
     cntfrq = raw_read_cntfrq_el0();
     current_cnt = raw_read_cntpct_el0();
     next_cnt = current_cnt + TIMER_TIMEOUT * cntfrq;
-    raw_write_cntval_el0(next_cnt);
+    raw_write_cntval_el2(next_cnt);
     uart_puts("\ncntfrq = ");
     uart_puthex(cntfrq);
     uart_puts("\ncurrent_cnt = ");
