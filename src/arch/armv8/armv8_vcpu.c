@@ -65,19 +65,9 @@ void armv8_vcpu_run(hp_vcpu_id_t vcpu_id)
     uint64_t hcr = read_hcr_el2();
     hcr |= (1U << 0);    /* VM enable */
     write_hcr_el2(hcr);
-
-    /* 使能 SError 并执行 esb，将挂起的 SError 立即触发为同步异常 */
-    __asm__ volatile("msr daifclr, #2" ::: "memory");  /* 清除 A 位 */
-    __asm__ volatile("isb");
-    __asm__ volatile("esb");         /* 如果存在挂起，将触发同步 SError */
-    __asm__ volatile("msr daifset, #2" ::: "memory");  /* 重新屏蔽 SError */
-
-    uart_puts("Entering VM...\n");
     
     /* 进入VM */
     armv8_vcpu_enter(vcpu_arch);
-
-    uart_puts("VM returned unexpectedly!\n");
     
     /* 正常情况不会返回，若返回则视为致命错误 */
     while (1) { __asm__ volatile("wfi"); }

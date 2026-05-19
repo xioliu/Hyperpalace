@@ -220,11 +220,6 @@ static int32_t stage2_map_range(uint64_t *pgd, uint64_t guest_pa, uint64_t host_
     uint64_t pa = host_pa;
     uint64_t remaining = size;
     uint64_t attrs = perm_to_stage2_attrs(perm);
-    uart_puts("attrs = "); uart_puthex(attrs); uart_puts("\n");
-    uart_puts("PGD addr: "); uart_puthex((uint64_t)(uintptr_t)pgd);
-    uart_puts(", pgd[0]="); uart_puthex(pgd[0]);
-    uart_puts(", pgd[1]="); uart_puthex(pgd[1]);
-    uart_puts("\n");
 
     if (pgd == NULL) return HP_EINVAL;
 
@@ -245,7 +240,7 @@ static int32_t stage2_map_range(uint64_t *pgd, uint64_t guest_pa, uint64_t host_
                 if (new_table == NULL) {
                     return HP_ENOMEM;
                 }
-                *pte = ((uint64_t)new_table & ARMV8_PTE_ADDR_MASK) | ARMV8_PTE_TYPE_TABLE | (1 << ARMV8_PTE_AF_SHIFT);
+                *pte = ((uint64_t)new_table & ARMV8_PTE_ADDR_MASK) | ARMV8_PTE_TYPE_TABLE;
                 table = (uint64_t *)new_table;
             } else if ((desc & 0x3U) == ARMV8_PTE_TYPE_TABLE) {
                 table = (uint64_t *)(desc & ARMV8_PTE_ADDR_MASK);
