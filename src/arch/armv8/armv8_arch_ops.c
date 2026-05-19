@@ -90,7 +90,7 @@ int32_t armv8_irq_assign(hp_vm_id_t vm_id, uint32_t irq_id)
         }
     }
     if (target_cpu == HP_INVALID_CPU_ID) {
-        return -HP_EINVAL;   /* 该 VM 未绑定 vCPU */
+        return HP_EINVAL;   /* 该 VM 未绑定 vCPU */
     }
 
     /* 设置中断亲和性到目标 CPU */

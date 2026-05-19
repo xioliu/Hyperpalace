@@ -32,47 +32,47 @@ int32_t hp_stage2_map(uint64_t pgd_pa, uint64_t guest_pa, uint64_t host_pa,
 {
     /* 参数合法性检查 */
     if (size == 0U) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
     if (((guest_pa & 0xFFFU) != 0U) || ((host_pa & 0xFFFU) != 0U)) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
 
     if ((g_arch_ops != NULL) && (g_arch_ops->mmu_map != NULL)) {
         return g_arch_ops->mmu_map(pgd_pa, guest_pa, host_pa, size, perm);
     }
-    return -HP_ENOSYS;
+    return HP_ENOSYS;
 }
 
 int32_t hp_stage2_unmap(uint64_t pgd_pa, uint64_t guest_pa, uint64_t size)
 {
     if (size == 0U) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
     if ((guest_pa & 0xFFFU) != 0U) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
 
     if ((g_arch_ops != NULL) && (g_arch_ops->mmu_unmap != NULL)) {
         return g_arch_ops->mmu_unmap(pgd_pa, guest_pa, size);
     }
-    return -HP_ENOSYS;
+    return HP_ENOSYS;
 }
 
 int32_t hp_stage2_protect(uint64_t pgd_pa, uint64_t guest_pa, uint64_t size,
                           uint32_t perm)
 {
     if (size == 0U) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
     if ((guest_pa & 0xFFFU) != 0U) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
 
     if ((g_arch_ops != NULL) && (g_arch_ops->mmu_protect != NULL)) {
         return g_arch_ops->mmu_protect(pgd_pa, guest_pa, size, perm);
     }
-    return -HP_ENOSYS;
+    return HP_ENOSYS;
 }
 
 bool hp_memory_is_hyp_reserved(uint64_t pa, uint64_t size)

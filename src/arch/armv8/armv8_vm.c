@@ -13,7 +13,7 @@ int32_t armv8_vm_init(hp_vm_id_t vm_id)
 {
     struct armv8_vm_arch *arch = armv8_get_vm_arch(vm_id);
     if (arch == NULL) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
     /* 清零私有数据 */
     (void)memset(arch, 0, sizeof(*arch));
@@ -21,7 +21,7 @@ int32_t armv8_vm_init(hp_vm_id_t vm_id)
     /* 从核心层获取已分配的 Stage-2 根页表物理地址 */
     uint64_t pgd_pa = hp_vm_get_pgd_pa(vm_id);
     if (pgd_pa == 0ULL) {
-        return -HP_EINVAL;   // 核心层尚未分配PGD
+        return HP_EINVAL;   // 核心层尚未分配PGD
     }
 
     arch->vttbr_el2 = pgd_pa;

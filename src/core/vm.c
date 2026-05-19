@@ -78,13 +78,13 @@ void hp_vm_destroy(hp_vm_id_t vm_id)
 
 int32_t hp_vm_add_memory_region(hp_vm_id_t vm_id, uint64_t guest_pa, uint64_t size, hp_mem_perm_t perm)
 {
-    if (vm_id >= HP_CONFIG_MAX_VMS) return -HP_EINVAL;
+    if (vm_id >= HP_CONFIG_MAX_VMS) return HP_EINVAL;
     struct hp_vm *vm = &g_vm_pool[vm_id];
-    if (vm->state == HP_VM_STATE_INVALID) return -HP_EINVAL;
-    if (vm->num_regions >= HP_CONFIG_MAX_MEM_REGIONS) return -HP_ENOMEM;
+    if (vm->state == HP_VM_STATE_INVALID) return HP_EINVAL;
+    if (vm->num_regions >= HP_CONFIG_MAX_MEM_REGIONS) return HP_ENOMEM;
     
     if (hp_memory_is_hyp_reserved(guest_pa, size)) {
-        return -HP_EPERM;
+        return HP_EPERM;
     }
     
     int32_t ret = hp_stage2_map(vm->pgd_pa, guest_pa, guest_pa, size, perm);
@@ -123,17 +123,17 @@ uint64_t hp_vm_get_pgd_pa(hp_vm_id_t vm_id)
 /* ========== vCPU 静态绑定 ========== */
 int32_t hp_vm_bind_vcpu(hp_vm_id_t vm_id, hp_pcpu_id_t pcpu_id)
 {
-    if (vm_id >= HP_CONFIG_MAX_VMS) return -HP_EINVAL;
-    if (pcpu_id >= HP_CONFIG_MAX_PCPUS) return -HP_EINVAL;
-    if (g_pcpu_bound[pcpu_id]) return -HP_EBUSY;
+    if (vm_id >= HP_CONFIG_MAX_VMS) return HP_EINVAL;
+    if (pcpu_id >= HP_CONFIG_MAX_PCPUS) return HP_EINVAL;
+    if (g_pcpu_bound[pcpu_id]) return HP_EBUSY;
     
     struct hp_vm *vm = &g_vm_pool[vm_id];
-    if (vm->state == HP_VM_STATE_INVALID) return -HP_EINVAL;
+    if (vm->state == HP_VM_STATE_INVALID) return HP_EINVAL;
     
     /* 在 vCPU 池中分配一个槽位（直接用 pcpu_id 作为索引） */
     struct hp_vcpu *vcpu = &g_vcpu_pool[pcpu_id];
     if (vcpu->state != HP_VCPU_STATE_INVALID) {
-        return -HP_EBUSY;   /* 该 CPU 已绑定 */
+        return HP_EBUSY;   /* 该 CPU 已绑定 */
     }
     
     vcpu->id = pcpu_id;                /* vCPU ID 与物理 CPU ID 一致 */
@@ -230,15 +230,15 @@ void hp_vcpu_stop_current(void)
 int32_t hp_vm_assign_interrupt(hp_vm_id_t vm_id, uint32_t irq_id)
 {
     if (vm_id >= HP_CONFIG_MAX_VMS) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
     if (irq_id >= HP_IRQ_MAX) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
 
     struct hp_vm *vm = &g_vm_pool[vm_id];
     if (vm->state == HP_VM_STATE_INVALID) {
-        return -HP_EINVAL;
+        return HP_EINVAL;
     }
 
     /* 检查中断是否已被其他 VM 使用（静态分区下可禁止共享） */
@@ -248,7 +248,7 @@ int32_t hp_vm_assign_interrupt(hp_vm_id_t vm_id, uint32_t irq_id)
             uint32_t word = irq_id / 32U;
             uint32_t bit = irq_id % 32U;
             if ((g_vm_pool[i].assigned_irqs[word] & (1U << bit)) != 0U) {
-                return -HP_EBUSY;   /* 中断已被占用 */
+                return HP_EBUSY;   /* 中断已被占用 */
             }
         }
     }
