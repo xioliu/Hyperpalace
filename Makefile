@@ -113,8 +113,8 @@ QEMU_OPTS = -M virt,gic-version=3 -cpu cortex-a57 \
             -machine virtualization=on \
             -nographic \
             -smp 2 \
-			-m 256M \
-			-device loader,addr=0x41000000,file=guest.bin,force-raw=on \
+			-m 512M \
+			-device loader,addr=0x50000000,file=guest.bin,force-raw=on \
             -kernel $(TARGET).elf
 
 run: all

@@ -9,7 +9,7 @@
 #include "arch_ops.h"
 #include "platform.h"
 
-#define GUEST_PHYS_START 0x41000000ULL
+#define GUEST_PHYS_START 0x50000000ULL
 #define GUEST_SIZE       0x2000000ULL   // 32MB 示例
 
 void main(void)
