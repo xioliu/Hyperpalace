@@ -1,3 +1,20 @@
+esr_el2 0x82000004
+elr_el2 0x41000000
+far_el2 0x41000000
+hcr_el2 0x80080019
+vttbr_el2 0x100004001c000
+vtcr_el2 0x80023558
+mair_el2 0xff00
+
+guest能访问的实际有效地址空间受几个因素影响：
+1. qemu -m参数，默认从0x40000000开始。-m 256M的话，访问不了0x50000000.
+2.vtcr的T0SZ设定（arm芯片默认是从0开始）
+3.vtcr的sl0和tg0设定。如果tg0是4K，
+start level是3 的话，只能有2^9*4k=2MB；即0-2MB。地址翻译直接从L3开始（每个entry 4K）
+start level是2的话，只能有2^9*2MB=1GB；0-1GB。此时页表项可以设定为2MB的block形式，也就是不要L3.
+start level是1的话，只能有2^9*1GB=512GB；0-512GB。理论上可用1GB的block形式，但是实际不这么用。
+
+
 正确的页表
 L1
 0x4001c000:	0x0000000000000000	0x000000004001d403
