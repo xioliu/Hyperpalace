@@ -3,9 +3,13 @@
 
 #include <stdint.h>
 
-#define GICD_BASE  0x08000000ULL
-#define GICR_BASE  0x080A0000ULL
-#define GICC_BASE  0x08010000ULL   /* QEMU virt 兼容的 legacy 映射 */
+/* QEMU virt 平台内存布局常量 */
+#define PSCI_BASE       0x09000000ULL
+#define VIRT_UART_BASE  0x09000000ULL
+#define GICD_BASE       0x08000000ULL
+#define GICR_BASE       0x080A0000ULL
+#define GICC_BASE       0x08010000ULL
+
 
 /* 平台初始化（主 CPU） */
 void platform_init(void);

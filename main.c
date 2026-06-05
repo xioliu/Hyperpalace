@@ -8,6 +8,11 @@
 #include "memory.h"
 #include "arch_ops.h"
 #include "platform.h"
+#include "uart.h"
+#include "sysregs.h"
+#include "armv8_vm.h"
+#include "armv8_vm_priv.h"
+#include "vtimer.h"
 
 #define GUEST_PHYS_START 0x50000000ULL
 #define GUEST_SIZE       0x2000000ULL   // 32MB 示例
@@ -23,7 +28,7 @@ void main(void)
     
     /* 2. 平台初始化（UART、中断控制器等） */
     platform_init();
-    
+
     /* 3. 内存管理子系统初始化 */
     hp_memory_init();  /* 内部调用 g_arch_ops->mmu_early_init */
     
@@ -44,7 +49,7 @@ void main(void)
     if (vm_id == HP_INVALID_VM_ID) {
         platform_panic("Failed to create VM");
     }
-    
+
     /* 7. 为VM添加内存区域（内部调用hp_stage2_map） */
     int32_t ret = hp_vm_add_memory_region(vm_id, 
                                           GUEST_PHYS_START,
@@ -53,6 +58,9 @@ void main(void)
     if (ret != 0) {
         platform_panic("Failed to add memory region");
     }
+    // 映射 UART 给 VM，设备内存，读写，不可执行，不可缓存，不可共享
+    //hp_vm_add_memory_region(vm_id, UART0_BASE, UART0_SIZE,
+                        //HP_MEM_READ | HP_MEM_WRITE | HP_MEM_DEVICE);
     
     /* 8. 设置VM入口点 */
     hp_vm_set_entry(vm_id, GUEST_PHYS_START);
@@ -67,6 +75,8 @@ void main(void)
         // 创建 VM 后配置中断
     //hp_vm_assign_interrupt(vm_id, 27U);   // 物理定时器（示例）
     //hp_vm_assign_interrupt(vm_id, 33U);   // 某个 SPI 设备
+    struct armv8_vcpu_arch *vcpu_arch = armv8_get_vcpu_arch(0);
+    vtimer_set_cval(vcpu_arch, read_cntpct_el0() + 62500000); // 1秒后到期
     
     /* 10. 启动vCPU（永不返回） */
     hp_vcpu_run_current();

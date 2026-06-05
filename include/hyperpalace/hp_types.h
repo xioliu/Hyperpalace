@@ -39,4 +39,6 @@ typedef enum {
 typedef uint32_t hp_mem_perm_t;
 typedef uint32_t hp_map_flags_t;
 
+typedef unsigned long long size_t;
+
 #endif

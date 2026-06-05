@@ -1,5 +1,6 @@
 #include "hp_types.h"
 #include "vm.h"
+#include "armv8_vm.h"
 #include "armv8_vm_priv.h"
 #include "armv8_mmu.h"
 #include "errno.h"
@@ -25,7 +26,7 @@ int32_t armv8_vm_init(hp_vm_id_t vm_id)
     }
 
     arch->vttbr_el2 = pgd_pa;
-    arch->stage2_pgd_va = (uint64_t *)armv8_pa_to_va(pgd_pa);
+    arch->stage2_pgd = (uint64_t *)armv8_pa_to_va(pgd_pa);
     return 0;
 }
 

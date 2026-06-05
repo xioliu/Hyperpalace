@@ -1,0 +1,7 @@
+读 32 位寄存器：
+(gdb) x/1wx 0x08000000          # 查看 GICD_CTLR（偏移 0x0000）
+(gdb) x/1wx 0x08000004          # 查看 GICD_TYPER（偏移 0x0004）
+如果用x/gx方式的话，读回来都是0.
+
+读 64 位寄存器（如 IROUTER）：
+(gdb) x/1gx 0x08006000          # 第一个 SPI 的 IROUTER（偏移 0x6000）

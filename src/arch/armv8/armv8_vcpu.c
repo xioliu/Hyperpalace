@@ -9,10 +9,13 @@
 #include "arch_ops.h"
 #include "errno.h"
 #include "arch_ops.h"
+#include "armv8_vm.h"
 #include "armv8_vm_priv.h"
 #include "sysregs.h"
 #include "string.h"
 #include "uart.h"
+#include "vtimer.h"
+#include "asm_defs.h"
 
 /* 外部汇编入口 */
 extern void armv8_vcpu_enter(struct armv8_vcpu_arch *ctx);
@@ -25,15 +28,16 @@ int32_t armv8_vcpu_init(hp_vcpu_id_t vcpu_id)
     }
     
     (void)memset(arch, 0, sizeof(*arch));
-    
     /* 获取VM入口点 */
     hp_vm_id_t vm_id = hp_vcpu_get_vm_id(vcpu_id);
     uint64_t entry = hp_vm_get_entry(vm_id);
     
     /* 设置初始寄存器状态 */
-    arch->elr_el2 = entry;
-    arch->spsr_el2 = 0x3C5U;  /* EL1h, 异常屏蔽禁用 */
-    arch->sp_el1 = entry + 0x100000U;  /* 假设栈在入口后1MB */
+    arch->regs.elr_el2 = entry;
+    arch->regs.spsr_el2 = 0x3C5U;  /* EL1h, 异常屏蔽禁用 */
+    arch->regs.sp_el1 = ((uint64_t)arch);
+
+    vtimer_init(arch);
     
     return 0;
 }
@@ -58,13 +62,19 @@ void armv8_vcpu_run(hp_vcpu_id_t vcpu_id)
     write_vttbr_el2(pgd_pa | (0x1ULL << 48));
 
     /* 设置系统寄存器 */
-    write_elr_el2(hp_vm_get_entry(vm_id));          /* Guest 入口 */
-    write_spsr_el2(0x3C5);              /* EL1h, DAIF 全开 */
+    //write_elr_el2(hp_vm_get_entry(vm_id));          /* Guest 入口 */
+    //write_spsr_el2(0x3C5);              /* EL1h, DAIF 全开 */
     
     /* 使能Stage-2 MMU */
     uint64_t hcr = read_hcr_el2();
     hcr |= (1U << 0);    /* VM enable */
     write_hcr_el2(hcr);
+
+    //uart_puts("HCR_EL2 before enter: ");
+    //uart_puthex(read_hcr_el2());
+    //uart_puts("\n");
+
+    write_tpidr_el2((uint64_t)vcpu_arch);
     
     /* 进入VM */
     armv8_vcpu_enter(vcpu_arch);

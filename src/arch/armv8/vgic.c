@@ -1,47 +1,7 @@
-#include "gicv3.h"
 #include "platform.h"
+#include "gicv3.h"
 #include "vgic.h"
 #include "sysregs.h"
-
-/* 寄存器访问 */
-static inline uint32_t read_ich_hcr_el2(void) {
-    uint64_t val;
-    __asm__ volatile("mrs %0, S3_4_C12_C11_0" : "=r"(val));
-    return (uint32_t)val;
-}
-static inline void write_ich_hcr_el2(uint32_t val) {
-    __asm__ volatile("msr S3_4_C12_C11_0, %0" : : "r"((uint64_t)val));
-}
-
-static inline uint64_t read_ich_lr_el2(uint32_t n) {
-    uint64_t val = 0;
-    /* 简化：假设编译器支持直接寄存器名；若不支持可展开 */
-    switch (n) {
-        case 0:  __asm__ volatile("mrs %0, S3_4_C12_C12_0" : "=r"(val)); break;
-        case 1:  __asm__ volatile("mrs %0, S3_4_C12_C12_1" : "=r"(val)); break;
-        case 2:  __asm__ volatile("mrs %0, S3_4_C12_C12_2" : "=r"(val)); break;
-        case 3:  __asm__ volatile("mrs %0, S3_4_C12_C12_3" : "=r"(val)); break;
-        case 4:  __asm__ volatile("mrs %0, S3_4_C12_C12_4" : "=r"(val)); break;
-        case 5:  __asm__ volatile("mrs %0, S3_4_C12_C12_5" : "=r"(val)); break;
-        case 6:  __asm__ volatile("mrs %0, S3_4_C12_C12_6" : "=r"(val)); break;
-        case 7:  __asm__ volatile("mrs %0, S3_4_C12_C12_7" : "=r"(val)); break;
-        default: break;
-    }
-    return val;
-}
-static inline void write_ich_lr_el2(uint32_t n, uint64_t val) {
-    switch (n) {
-        case 0:  __asm__ volatile("msr S3_4_C12_C12_0, %0" : : "r"(val)); break;
-        case 1:  __asm__ volatile("msr S3_4_C12_C12_1, %0" : : "r"(val)); break;
-        case 2:  __asm__ volatile("msr S3_4_C12_C12_2, %0" : : "r"(val)); break;
-        case 3:  __asm__ volatile("msr S3_4_C12_C12_3, %0" : : "r"(val)); break;
-        case 4:  __asm__ volatile("msr S3_4_C12_C12_4, %0" : : "r"(val)); break;
-        case 5:  __asm__ volatile("msr S3_4_C12_C12_5, %0" : : "r"(val)); break;
-        case 6:  __asm__ volatile("msr S3_4_C12_C12_6, %0" : : "r"(val)); break;
-        case 7:  __asm__ volatile("msr S3_4_C12_C12_7, %0" : : "r"(val)); break;
-        default: break;
-    }
-}
 
 #define VGIC_LR_COUNT      16U
 #define DEFAULT_PRIORITY   0x80U

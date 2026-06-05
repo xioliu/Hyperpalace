@@ -5,11 +5,13 @@
 #include "sysregs.h"
 #include "uart.h"
 #include "irq.h"
+#include "platform.h"
 #include "gicv3.h"
+#include "armv8_vm.h"
 #include "armv8_vm_priv.h"
-
+#include "vtimer.h"
 /* ---------- 保留的函数 ---------- */
-
+#if 0
 /* Stage‑2 缺页处理（待完善） */
 static bool handle_stage2_abort(struct armv8_vcpu_arch *arch,
                                 uint64_t far, uint64_t esr)
@@ -25,12 +27,7 @@ static bool handle_stage2_abort(struct armv8_vcpu_arch *arch,
 /* HVC 调用处理 */
 static void handle_hvc(struct armv8_vcpu_arch *arch)
 {
-    uint64_t hvc_num = arch->x[0];
-    (void)hvc_num;
-    uart_puts("HVC called\n");
-    /* 跳过 HVC 指令并返回 0 */
-    arch->elr_el2 += 4U;
-    arch->x[0] = 0;
+    (void)arch;
 }
 
 /* ---------- 优化后的函数 ---------- */
@@ -77,6 +74,15 @@ static void handle_vm_sync_exception(struct armv8_vcpu_arch *arch,
                                      uint64_t esr, uint64_t far)
 {
     uint32_t ec = (uint32_t)((esr >> 26U) & 0x3FU);
+    uart_puts("sync exc: EC=");
+    uart_puthex(ec);
+    uart_puts("\n");
+
+    if (ec == 0x01U) {              // WFI/WFE 陷阱
+        //arch->elr_el2 += 4U;        // 跳过 WFI
+        vtimer_check_inject(arch);  // 检查并注入虚拟定时器
+        return;
+    }
 
     switch (ec) {
         case 0x24U:   /* Instruction Abort from lower EL */
@@ -104,24 +110,24 @@ fatal:
     hp_vcpu_stop(hp_vcpu_get_current());
     while (1) { __asm__ volatile("wfi"); }
 }
-
+#endif
 /* 从 vector.S 调用的低异常级别入口 */
-void lower_exception_handler(uint32_t exc_type, struct armv8_vcpu_arch *arch)
+void lower_exception_handler(struct arch_regs* regs)
 {
     uint64_t esr = read_esr_el2();
-    uint64_t far = read_far_el2();
+    uint64_t ec = (esr >> 26) & 0x3f;
 
-    switch (exc_type) {
-        case EXC_TYPE_SYNC_LEL_AARCH64:
-            handle_vm_sync_exception(arch, esr, far);
-            break;
-        case EXC_TYPE_IRQ_LEL_AARCH64:
-            handle_vm_irq();
-            break;
-        default:
-            uart_puts("Unhandled exception type\n");
-            hp_vcpu_stop(hp_vcpu_get_current());
-            while (1) { __asm__ volatile("wfi"); }
+    //uart_puts("regs: ");
+    //uart_puthex((uint64_t)regs);
+    //uart_puts("\n");
+
+    if (ec == 0x1) {
+        // WFI/WFE陷阱
+        //uart_puts("WFI trapped at PC ");
+        //uart_puthex(regs->elr_el2);
+        //uart_puts("\n");
+        // 跳过WFI指令
+        regs->elr_el2 += 4;
     }
 }
 
@@ -134,6 +140,15 @@ void hyp_irq_handler(void)
 void handle_hyp_sync(void)
 {
     uint64_t esr = read_esr_el2();
+    uint64_t elr = read_elr_el2();
+    uint64_t far = read_far_el2();
+
+    // 打印异常信息
+    uart_puts("EL2 Sync Exception:\n");
+    uart_puts("  ESR_EL2: "); uart_puthex(esr);
+    uart_puts("  ELR_EL2: "); uart_puthex(elr);
+    uart_puts("  FAR_EL2: "); uart_puthex(far);
+
     uint32_t ec = (esr >> 26) & 0x3F;
     if (ec == 0x2F) {   // SError interrupt (synchronous after ESB)
         uint64_t elr = read_elr_el2();

@@ -11,7 +11,15 @@
 #define HCR_IMO_BIT    (1U << 4)   /* 物理 IRQ 路由到 EL2 */
 #define HCR_AMO_BIT    (1U << 5)   /* 物理 SError 路由到 EL2 */
 #define HCR_TSC_BIT    (1U << 19)  /* 虚拟定时器陷阱 */
+#define HCR_TGE_BIT    (1U << 27)  /* 陷阱通用异常 */
 #define HCR_RW_BIT     (1U << 31)  /* EL1 执行状态：1 = AArch64 */
+
+static inline uint32_t read_current_el(void)
+{
+    uint32_t current_el;
+    __asm__ __volatile__("mrs %0, CurrentEL\n\t" : "=r" (current_el) : : "memory");
+    return (current_el >> 2) & 0x03; //bits 2-3
+}
 
 static inline uint64_t read_hcr_el2(void) {
     uint64_t val;
@@ -110,25 +118,45 @@ static inline void at_s12e1r(uint64_t va)
     __asm__ volatile("isb" ::: "memory");
 }
 
-/* ICC_CTLR_EL1: Interrupt Controller Control Register (EL1) */
-static inline void icc_write_icc_ctlr(uint32_t val)
-{
-    __asm__ volatile("msr S3_0_C12_C12_4, %0" : : "r"((uint64_t)val));
-    __asm__ volatile("isb");
+static inline uint64_t read_vbar_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, vbar_el2" : "=r"(val));
+    return val;
 }
 
-/* ICC_PMR_EL1: Priority Mask Register */
-static inline void icc_write_icc_pmr(uint32_t val)
-{
-    __asm__ volatile("msr S3_0_C4_C6_0, %0" : : "r"((uint64_t)val));
-    __asm__ volatile("isb");
+static inline void write_vbar_el2(uint64_t val) {
+    __asm__ volatile("msr vbar_el2, %0" :: "r"(val));
 }
 
-/* ICC_BPR1_EL1: Binary Point Register 1 */
-static inline void icc_write_icc_bpr1(uint32_t val)
-{
-    __asm__ volatile("msr S3_0_C12_C12_3, %0" : : "r"((uint64_t)val));
-    __asm__ volatile("isb");
+static inline uint64_t read_sctlr_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, sctlr_el2" : "=r"(val));
+    return val;
+}
+
+static inline void write_sctlr_el2(uint64_t val) {
+    __asm__ volatile("msr sctlr_el2, %0" :: "r"(val));
+}
+
+// EL2下访问ICC_CTLR_EL1（非安全副本）
+static inline uint64_t read_icc_ctlr_el1(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_0_C12_C12_4" : "=r"(val)); // opc1=0，EL2自动访问NS副本
+    return val;
+}
+
+static inline void write_icc_ctlr_el1(uint64_t val) {
+    __asm__ volatile("msr S3_0_C12_C12_4, %0" :: "r"(val));
+}
+
+// EL2下访问ICC_PMR_EL1（非安全副本）
+static inline void write_icc_pmr_el1(uint64_t val) {
+    __asm__ volatile("msr S3_0_C4_C6_0, %0" :: "r"(val));
+}
+
+// EL2下访问ICC_IGRPEN1_EL1（非安全副本）
+static inline void write_icc_igrpen1_el1(uint64_t val) {
+    __asm__ volatile("msr S3_0_C12_C12_7, %0" :: "r"(val));
 }
 
 /* TLB 维护 */
@@ -142,6 +170,51 @@ static inline void tlbi_ipas2e1is(uint64_t va) {
     __asm__ volatile("tlbi ipas2e1is, %0" : : "r"(va >> 12U));
     __asm__ volatile("dsb ish" ::: "memory");
     __asm__ volatile("isb" ::: "memory");
+}
+
+// 内存屏障
+static inline void isb(void) {
+    __asm__ volatile("isb" ::: "memory");
+}
+
+static inline void dsb(void) {
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+// ==============================
+// EL2 物理通用定时器寄存器（ARMv8 标准编码）
+// ==============================
+static inline uint64_t read_cntfrq_el0(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_3_C14_C0_0" : "=r"(val));
+    return val;
+}
+
+static inline uint64_t read_cntpct_el0(void)
+{
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_3_C14_C0_1" : "=r"(val));
+    return val;
+}
+
+static inline uint64_t read_cntp_tval_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_4_C14_C2_0" : "=r"(val));
+    return val;
+}
+
+static inline void write_cntp_tval_el2(uint64_t val) {
+    __asm__ volatile("msr S3_4_C14_C2_0, %0" :: "r"(val));
+}
+
+static inline uint64_t read_cntp_ctl_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_4_C14_C2_1" : "=r"(val));
+    return val;
+}
+
+static inline void write_cntp_ctl_el2(uint64_t val) {
+    __asm__ volatile("msr S3_4_C14_C2_1, %0" :: "r"(val));
 }
 
 #endif /* SYSREGS_H */

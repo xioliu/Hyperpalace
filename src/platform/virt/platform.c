@@ -10,12 +10,6 @@ extern void secondary_cpu_entry(void);
 /* 用于辅助 CPU 启动的栈空间 */
 extern uint8_t secondary_stacks[HP_CONFIG_MAX_PCPUS - 1U][0x1000];
 
-/* QEMU virt 平台内存布局常量 */
-#define PSCI_BASE       0x09000000ULL
-#define VIRT_UART_BASE  0x09000000ULL
-#define GIC_DIST_BASE   0x08000000ULL
-#define GIC_CPU_BASE    0x08010000ULL
-
 /* 简单的自旋表：辅助 CPU 等待主 CPU 释放 */
 volatile uint64_t cpu_release_addr[HP_CONFIG_MAX_PCPUS] __attribute__((aligned(64)));
 

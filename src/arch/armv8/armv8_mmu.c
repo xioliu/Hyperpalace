@@ -110,17 +110,31 @@ static uint64_t perm_to_stage2_attrs(uint32_t perm)
 {
     uint64_t attrs = 0U;
 
-    /* MemAttr[3:0] = 0b0111 (Normal WB WA, Inner & Outer) */
-    attrs |= (0x7U << 2);   // bits[5:2]
+    // ----- MemAttr[3:0] (bits[5:2]) -----
+    if (perm & HP_MEM_DEVICE) {
+        // 设备内存: MemAttr = 0b0000 (Device-nGnRnE)
+        attrs |= (0x0U << 2);
+    } else {
+        // 普通内存: MemAttr = 0b0111 (Normal WB, RA, WA, Inner & Outer)
+        attrs |= (0x7U << 2);
+    }
 
-    /* 访问权限：EL1 读写 */
-    attrs |= (3U << 6);   // AP[2:1] = 3
+    // ----- AP[2:1] (bits[7:6]) -----
+    if ((perm & HP_MEM_WRITE) != 0U) {
+        attrs |= (0x3U << 6);   // EL1 读写
+    } else {
+        attrs |= (0x2U << 6);   // EL1 只读
+    }
 
-    /* 内部共享 */
-    attrs |= (3U << 8);   // SH = 3
+    // ----- SH[1:0] (bits[9:8]) -----
+    if (perm & HP_MEM_SHAREABLE) {
+        attrs |= (0x3U << 8);   // Inner Shareable
+    } else {
+        attrs |= (0x0U << 8);   // Non‑shareable
+    }
 
-    /* 访问标志 */
-    attrs |= (1U << 10);  // AF = 1
+    // ----- AF (bit[10]) -----
+    attrs |= (1U << 10);   // AF = 1
 
     /* 执行权限：只有明确禁止执行时才设置 XN */
     if ((perm & HP_MEM_EXEC) == 0U) {

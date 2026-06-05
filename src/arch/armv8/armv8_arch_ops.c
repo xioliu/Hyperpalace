@@ -5,8 +5,10 @@
 #include "arch_ops.h"
 #include "errno.h"
 #include "arch_ops.h"
+#include "armv8_vm.h"
 #include "armv8_vm_priv.h"
 #include "armv8_mmu.h"
+#include "platform.h"
 #include "gicv3.h"
 #include "sysregs.h"
 #include "vgic.h"
@@ -34,15 +36,37 @@ extern uint32_t armv8_get_current_cpu_id(void);
 extern void armv8_vgic_inject(uint32_t irq_id, uint8_t priority);
 extern int32_t armv8_mmu_protect(uint64_t pgd_pa, uint64_t guest_pa, uint64_t size, uint32_t perm);
 
+// ==============================
+// 初始化 EL2 物理定时器，每 1 秒产生一次中断
+// ==============================
+static inline void el2_phys_timer_init(void) {
+    uint64_t freq = read_cntfrq_el0(); // QEMU virt 固定为 62500000 Hz
+    uint64_t one_second = freq; // 1 秒 = 频率个时钟周期
+
+    // 设置定时器初值（1秒后触发）
+    write_cntp_tval_el2(one_second);
+
+    // 使能定时器 + 开启中断
+    write_cntp_ctl_el2(0x3); // bit0=1: 使能定时器，bit1=1: 开启中断
+    isb();
+
+    // 使能 GIC 中 EL2 物理定时器对应的中断
+    gicv3_enable_irq(26, 1);
+    gicv3_set_irq_priority(26, 0x80);
+}
+
 void armv8_early_init(void) {
     /* 初始化GIC等（可调用你已有的GICv3初始化） */
     gicv3_init();
+    el2_phys_timer_init();
 }
 
 void armv8_late_init(void) {
     /* 配置HCR_EL2等 */
     uint64_t hcr = read_hcr_el2();
-    hcr |= HCR_VM_BIT | HCR_RW_BIT | HCR_IMO_BIT | HCR_FMO_BIT | HCR_TSC_BIT;  /* Stage-2 MMU enable, EL1是AArch64 */
+    hcr |= HCR_VM_BIT | HCR_RW_BIT | HCR_IMO_BIT | HCR_FMO_BIT | HCR_AMO_BIT;
+    //hcr |= HCR_TGE_BIT | HCR_TSC_BIT;
+    hcr |= (0x1 << 13);//WFI trap
     write_hcr_el2(hcr);
 
     /* 主 CPU 的 per‑CPU 虚拟 GIC 初始化 */
