@@ -1,20 +1,96 @@
 #ifndef VTIMER_H
 #define VTIMER_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#define PTIMER_IRQ 26
+#define VTIMER_IRQ 27
+#define CNTHP_CTL_ENABLE ((0<<1) | (1<<0))
 
-struct armv8_vcpu_arch;
+void timer_init(void);
+void virt_timer_interrupt_handler(struct arch_regs* regs);
+void timer_handler(void);
+void el2_phys_timer_init(void);
 
-/* 初始化 vCPU 虚拟定时器 */
-void vtimer_init(struct armv8_vcpu_arch *arch);
+static inline uint32_t raw_read_cntfrq_el0(void)
+{
+    uint32_t cntfrq_el0;
 
-/* 处理陷阱访问，返回 true 表示已处理 */
-bool vtimer_handle_trap(struct armv8_vcpu_arch *arch, uint64_t esr);
+    __asm__ __volatile__("mrs %0, CNTFRQ_EL0\n\t" : "=r" (cntfrq_el0) : : "memory");
+    return cntfrq_el0;
+}
 
-/* 检查定时器条件，必要时注入中断（可在每次 vm exit 时调用） */
-void vtimer_check_inject(struct armv8_vcpu_arch *arch);
+static inline uint64_t raw_read_cntpct_el0(void)
+{
+    uint64_t cntpct_el0;
 
-void vtimer_set_cval(struct armv8_vcpu_arch *arch, uint64_t cval);
+    __asm__ __volatile__("mrs %0, CNTPCT_EL0\n\t" : "=r" (cntpct_el0) : : "memory");
+    return cntpct_el0;
+}
+
+static inline void raw_write_cntval_el2(uint64_t cntval_el2)
+{
+    __asm__ __volatile__("msr CNTHP_CVAL_EL2, %0\n\t" : : "r" (cntval_el2) : "memory");
+}
+
+static inline uint32_t raw_read_cntv_ctl(void)
+{
+    uint32_t cntv_ctl;
+
+    __asm__ __volatile__("mrs %0, CNTHP_CTL_EL2\n\t" : "=r" (cntv_ctl) : : "memory");
+    return cntv_ctl;
+}
+
+static inline void disable_cntv(void)
+{
+    uint32_t cntv_ctl;
+
+    cntv_ctl = raw_read_cntv_ctl();
+    cntv_ctl &= ~CNTHP_CTL_ENABLE;
+    __asm__ __volatile__("msr CNTHP_CTL_EL2, %0\n\t" : : "r" (cntv_ctl) : "memory");
+}
+
+static inline void enable_cntv(void)
+{
+    uint32_t cntv_ctl;
+
+    cntv_ctl = raw_read_cntv_ctl();
+    cntv_ctl |= CNTHP_CTL_ENABLE;
+    __asm__ __volatile__("msr CNTHP_CTL_EL2, %0\n\t" : : "r" (cntv_ctl) : "memory");
+}
+
+// ==============================
+// EL2 物理通用定时器寄存器（ARMv8 标准编码）
+// ==============================
+static inline uint64_t read_cntfrq_el0(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_3_C14_C0_0" : "=r"(val));
+    return val;
+}
+
+static inline uint64_t read_cntpct_el0(void)
+{
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_3_C14_C0_1" : "=r"(val));
+    return val;
+}
+
+static inline uint64_t read_cntp_tval_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_4_C14_C2_0" : "=r"(val));
+    return val;
+}
+
+static inline void write_cntp_tval_el2(uint64_t val) {
+    __asm__ volatile("msr S3_4_C14_C2_0, %0" :: "r"(val));
+}
+
+static inline uint64_t read_cntp_ctl_el2(void) {
+    uint64_t val;
+    __asm__ volatile("mrs %0, S3_4_C14_C2_1" : "=r"(val));
+    return val;
+}
+
+static inline void write_cntp_ctl_el2(uint64_t val) {
+    __asm__ volatile("msr S3_4_C14_C2_1, %0" :: "r"(val));
+}
 
 #endif

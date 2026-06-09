@@ -10,6 +10,7 @@
 #define GICR_BASE       0x080A0000ULL
 #define GICC_BASE       0x08010000ULL
 
+#define QEMU_VIRT_GIC_INT_MAX       64
 
 /* 平台初始化（主 CPU） */
 void platform_init(void);

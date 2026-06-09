@@ -37,7 +37,10 @@ int32_t armv8_vcpu_init(hp_vcpu_id_t vcpu_id)
     arch->regs.spsr_el2 = 0x3C5U;  /* EL1h, 异常屏蔽禁用 */
     arch->regs.sp_el1 = ((uint64_t)arch);
 
-    vtimer_init(arch);
+    /* 初始化虚拟定时器 */
+    arch->cntv_cval = 62500000;
+    arch->vtimer_pending = false;
+    //virt_timer_init();
     
     return 0;
 }
@@ -75,6 +78,10 @@ void armv8_vcpu_run(hp_vcpu_id_t vcpu_id)
     //uart_puts("\n");
 
     write_tpidr_el2((uint64_t)vcpu_arch);
+
+    vcpu_arch->running = true;
+
+    vcpu_arch->cntv_ctl = 1;
     
     /* 进入VM */
     armv8_vcpu_enter(vcpu_arch);

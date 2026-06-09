@@ -75,9 +75,8 @@ void main(void)
         // 创建 VM 后配置中断
     //hp_vm_assign_interrupt(vm_id, 27U);   // 物理定时器（示例）
     //hp_vm_assign_interrupt(vm_id, 33U);   // 某个 SPI 设备
-    struct armv8_vcpu_arch *vcpu_arch = armv8_get_vcpu_arch(0);
-    vtimer_set_cval(vcpu_arch, read_cntpct_el0() + 62500000); // 1秒后到期
-    
+    timer_init();
+
     /* 10. 启动vCPU（永不返回） */
     hp_vcpu_run_current();
     

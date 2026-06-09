@@ -1,8 +1,11 @@
 #include "platform.h"
 #include "gicv3.h"
+#include "armv8_vm.h"
 #include "sysregs.h"
 #include "vgic.h"
+#include "vtimer.h"
 #include "uart.h"
+#include "util.h"
 
 /* CPU 接口寄存器 */
 #define GICC_CTLR            0x0000
@@ -28,6 +31,24 @@
 #define GIC_SPI_BASE         32U
 #define GIC_MAX_SPI          1019U
 
+void gicr_init(void)
+{
+    uint32_t i, nr;
+    uart_puts("gicr_init\n");
+
+    *REG_GIC_GICR_WAKER &= ~GICR_WAKER_ProcessorSleep_BIT;
+    while(*REG_GIC_GICR_WAKER & GICR_WAKER_ChildrenASleep_BIT);
+
+    nr = NUMBER(GIC_INT_MAX, GIC_GICR_INT_PER_REG);
+
+    *REG_GIC_GICR_IGROUPR0 = ~0U;
+    *REG_GIC_GICR_ICENABLER0 = ~0U;
+    *REG_GIC_GICR_ICPENDR0 = ~0U;
+    *REG_GIC_GICR_ICACTIVER0 = ~0U;
+    for(i = 0; i < nr; i++)
+        *REG_GIC_GICR_IPRIORITYR(i) = ~0U;
+}
+
 /* ========== 全局初始化 ========== */
 void gicv3_init(void)
 {
@@ -42,33 +63,24 @@ void gicv3_init(void)
     //mmio_write32(GICD_BASE + GICD_IPRIORITYR(0), 0xFFFFFFFF);
 
     // 使能GICD， ARE_NS=1 bit [4] 打开亲和路由， 否则GICD 处于 “旧版 GICv2 兼容模式”
-    mmio_write32(GICD_BASE + GICD_CTLR, 0x12);
+    mmio_write32(GICD_BASE + GICD_CTLR, 0x22);
     // 等待GICD启动完成
     while ((mmio_read32(GICD_BASE + GICD_CTLR) & 0x12) != 0x12);
 
     /* 使能 GICv3 系统寄存器接口，GICv3在SRE=0时，很多关键 MMIO 寄存器是 RAZ/WI */
     /* 目的：强制你先开 SRE，再用系统寄存器接口（ICC_*_EL2）** 来配置 GIC */
     val = read_icc_sre_el2();
-    val |= 0x1; // SRE=1 启用系统寄存器
+    val |= 0x9; // SRE=1 启用系统寄存器
     write_icc_sre_el2(val);
     isb();
 
-    // 唤醒GICR
-    //mmio_write32(GICR_BASE + GICR_WAKER, 0x0);
-    //while (mmio_read32(GICR_BASE + GICR_WAKER) & (0x1 << 2));
-    
-    mmio_write32(GICR_BASE + GICR_IGROUPR0, 0xFFFFFFFF);
-    mmio_write32(GICR_BASE + GICR_ISENABLER0, 0xFFFFFFFF);   // 使能所有 SGI/PPI，包括 26
-    //mmio_write32(GICR_BASE + GICR_ICENABLER0, 0xFFFFFFFF);
-    //mmio_write32(GICR_BASE + GICR_ICPENDR, 0xFFFFFFFF);
-    //mmio_write32(GICR_BASE + GICR_ICACTIVER0, 0xFFFFFFFF);
-    //mmio_write32(GICR_BASE + GICR_IPRIORITYR0, 0xFFFFFFFF);
-    // 使能GICR
-    mmio_write32(GICR_BASE + GICR_CTLR, 0x1);
+    gicr_init();
 
-    write_icc_pmr_el1(0xFF);          // 优先级掩码全开
-    write_icc_ctlr_el1(0x1);          // EOImode=1
-    write_icc_igrpen1_el1(0x1);       // 使能非安全Group1中断
+    icc_write_icc_pmr(0xFF);      /* 最低优先级掩码 */
+    icc_write_icc_bpr1(0x0);      /* 二进制点 */
+    icc_write_icc_ctlr(0x2);      /* 使能 Group1 */
+    sysreg_ich_hcr_el2_write(sysreg_ich_hcr_el2_read() | ICH_HCR_LRENPIE_BIT);
+    sysreg_icc_igrpen1_el1_write(0x1);
 
     gicv3_init_cpu();
 }
@@ -113,7 +125,7 @@ void gicv3_set_irq_target(uint32_t irq_id, uint8_t cpu_id)
     if (irq_id < GIC_SPI_BASE || irq_id > GIC_MAX_SPI) {
         return;
     }
-    uint64_t router_addr = GICD_BASE + GICD_IROUTER + (uint64_t)irq_id * 8U;
+    uint64_t router_addr = GICD_BASE + GICD_IROUTER(0) + (uint64_t)irq_id * 8U;
     volatile uint64_t *router = (volatile uint64_t *)router_addr;
     *router = ((uint64_t)cpu_id & 0xFFU);
 }
@@ -130,6 +142,55 @@ void gicv3_enable_irq(uint32_t irq_id, bool enable)
     }
 }
 
+void gicr_set_priority(uint32_t irq, uint32_t pri)
+{
+    uint32_t offset, value;
+
+    offset = (irq % GIC_GICR_INTPRIORITY_PER_REG) * GIC_GICR_INTPRIORITY_SIZE_PER_REG;
+    value = *REG_GIC_GICR_IPRIORITYR(irq / GIC_GICR_INTPRIORITY_PER_REG);
+    value &= ~((uint32_t)0xff << offset);
+    value |= (pri << offset);
+    *REG_GIC_GICR_IPRIORITYR(irq / GIC_GICR_INTPRIORITY_PER_REG) = value;
+}
+
+
+void gicr_sgi_config(uint32_t irq, uint32_t cfg)
+{
+    uint32_t offset, value;
+
+    offset = (irq % GIC_GICR_ICFGR_PER_REG) * GIC_GICR_ICFGR_BITS_PER_REG;
+    value = *REG_GIC_GICR_ICFGR0;
+    value &= ~((uint32_t)0x3 << offset);
+    value |= (cfg << offset);
+    *REG_GIC_GICR_ICFGR0 = value;
+}
+
+void gicr_ppi_config(uint32_t irq, uint32_t cfg)
+{
+    uint32_t offset, value;
+
+    offset = ((irq - GIC_SGI_MAX)% GIC_GICR_ICFGR_PER_REG) * GIC_GICR_ICFGR_BITS_PER_REG;
+    value = *REG_GIC_GICR_ICFGR1;
+    value &= ~((uint32_t)0x3 << offset);
+    value |= (cfg << offset);
+    *REG_GIC_GICR_ICFGR1 = value;
+}
+
+void gicr_clear_pending(uint32_t irq)
+{
+    *REG_GIC_GICR_ICPENDR0 |= 1 << (irq % GIC_GICR_ICPENDR_PER_REG);
+}
+
+void gicr_enable_irq(uint32_t irq)
+{
+    *REG_GIC_GICR_ISENABLER0 |= 1 << (irq % GIC_GICR_ISENABLER_PER_REG);
+}
+
+void gicr_disable_irq(uint32_t irq)
+{
+    *REG_GIC_GICR_ICENABLER0 |= 1 << (irq % GIC_GICR_ICENABLER_PER_REG);
+}
+
 /* ========== 辅助函数 ========== */
 bool gicv3_irq_belongs_to_vm(uint32_t irq_id)
 {
@@ -138,38 +199,25 @@ bool gicv3_irq_belongs_to_vm(uint32_t irq_id)
     return true;
 }
 
-/* ========== 中断应答与结束 ========== */
-uint32_t gicv3_read_iar(void)
-{
-    return mmio_read32(GICC_BASE + GICC_IAR);
-}
-
-void gicv3_write_eoir(uint32_t iar)
-{
-    mmio_write32(GICC_BASE + GICC_EOIR, iar);
-}
-
-void gicv3_write_dir(uint32_t irq_id)
-{
-    mmio_write32(GICC_BASE + GICC_DIR, irq_id);
-}
-
 /* Hypervisor 自身中断处理（当前仅示例定时器） */
 void gicv3_handle_irq(void)
 {
     uart_puts("gicv3_handle_irq\n");
-    uint32_t iar = gicv3_read_iar();
+    uint32_t iar = gicc_iar();
     uint32_t irqid = iar & 0x3FFU;
+    uart_puthex(iar);
+    uart_puts("\n");
+
     if (irqid >= 1020U) return;
 
-    if (irqid == 26U) {   /* EL2 物理定时器 */
-        /* 处理定时器中断 */
-        __asm__ volatile("mrs x0, cntp_ctl_el0" ::: "x0");
-        uart_puts("EL2 timer IRQ\n");
-    }
+    //gicr_disable_irq(irqid);
+    //gicr_clear_pending(irqid);
+    //gicr_enable_irq(irqid);
 
-    gicv3_write_eoir(iar);
-    gicv3_write_dir(irqid);
+    //timer_handler();
+
+    gicc_eoir(iar);
+    gicc_dir(iar);
 }
 
 void gicv3_maintenance_handler(void)
@@ -219,4 +267,30 @@ uint8_t gicv3_get_physical_priority(uint32_t irq_id)
     volatile uint32_t *prio_reg = (volatile uint32_t *)(GICD_BASE + 0x0400U + reg_index * 4U);
     uint32_t prio_val = *prio_reg;
     return (uint8_t)((prio_val >> byte_shift) & 0xFFU);
+}
+
+void gicv3_route_irq_to_el2(uint32_t irq_id)
+{
+    if (irq_id < GIC_SPI_BASE || irq_id > GIC_MAX_SPI) {
+        return;  // 只处理SPI中断，SGI/PPI是CPU私有，不需要路由
+    }
+
+    uint32_t reg_index = irq_id / 32U;
+    uint32_t bit = irq_id % 32U;
+
+    /* 第一步：将中断设置为Group 1非安全 */
+    uint32_t igroupr = mmio_read32(GICD_BASE + GICD_IGROUPR(reg_index));
+    igroupr |= (1U << bit);  // 1 = Group 1 NS
+    mmio_write32(GICD_BASE + GICD_IGROUPR(reg_index), igroupr);
+
+    /* 第二步：获取当前CPU的亲和性 */
+    uint64_t mpidr = read_mpidr_el1();
+    uint64_t aff = mpidr & 0xffffffULL;  // 提取Aff0+Aff1+Aff2
+
+    /* 第三步：设置中断路由到当前CPU */
+    uint64_t irouter = aff;
+    irouter &= ~GICD_IROUTER_IRM;  // IRM=0：路由到指定CPU
+    mmio_write64(GICD_BASE + GICD_IROUTER(irq_id), 0);
+
+    dsb();  // 确保寄存器写入生效
 }

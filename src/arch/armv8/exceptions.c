@@ -131,6 +131,24 @@ void lower_exception_handler(struct arch_regs* regs)
     }
 }
 
+void lower_irq_handler(struct arch_regs* regs)
+{
+    /* 读取中断号 */
+    int irq = gicc_iar();
+    
+    switch (irq) {
+        case VTIMER_IRQ:
+            virt_timer_interrupt_handler(regs);
+            break;
+        default:
+            uart_puts("Unhandled IRQ: ");
+            break;
+    }
+    
+    /* 结束中断 */
+    gicc_eoir(irq);
+}
+
 /* EL2 自身的中断处理（直接使用 GICv3 统一入口） */
 void hyp_irq_handler(void)
 {

@@ -25,9 +25,9 @@ struct armv8_vcpu_arch {
     uint64_t vbar_el1;
     uint64_t sctlr_el1;
     /* ... 其他需要保存的寄存器 */
-    uint64_t vtimer_cval;
-    uint64_t vtimer_ctl;
-    uint64_t vtimer_offset;
+    uint64_t cntv_cval;
+    uint64_t cntv_ctl;
+    uint64_t cntvoff;
     bool vtimer_pending;
     
     bool running;

@@ -181,40 +181,4 @@ static inline void dsb(void) {
     __asm__ volatile("dsb sy" ::: "memory");
 }
 
-// ==============================
-// EL2 物理通用定时器寄存器（ARMv8 标准编码）
-// ==============================
-static inline uint64_t read_cntfrq_el0(void) {
-    uint64_t val;
-    __asm__ volatile("mrs %0, S3_3_C14_C0_0" : "=r"(val));
-    return val;
-}
-
-static inline uint64_t read_cntpct_el0(void)
-{
-    uint64_t val;
-    __asm__ volatile("mrs %0, S3_3_C14_C0_1" : "=r"(val));
-    return val;
-}
-
-static inline uint64_t read_cntp_tval_el2(void) {
-    uint64_t val;
-    __asm__ volatile("mrs %0, S3_4_C14_C2_0" : "=r"(val));
-    return val;
-}
-
-static inline void write_cntp_tval_el2(uint64_t val) {
-    __asm__ volatile("msr S3_4_C14_C2_0, %0" :: "r"(val));
-}
-
-static inline uint64_t read_cntp_ctl_el2(void) {
-    uint64_t val;
-    __asm__ volatile("mrs %0, S3_4_C14_C2_1" : "=r"(val));
-    return val;
-}
-
-static inline void write_cntp_ctl_el2(uint64_t val) {
-    __asm__ volatile("msr S3_4_C14_C2_1, %0" :: "r"(val));
-}
-
 #endif /* SYSREGS_H */
