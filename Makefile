@@ -25,7 +25,6 @@ INCLUDE_DIRS = include \
 # 汇编文件
 ASM_SRCS  = $(CORE_DIR)/boot.S \
             $(CORE_DIR)/vector.S \
-            $(ARCH_DIR)/vcpu_entry.S \
             $(PLAT_DIR)/boot_plat.S
 
 # C 源文件
@@ -40,6 +39,7 @@ C_SRCS    = main.c \
             $(ARCH_DIR)/exceptions.c \
             $(ARCH_DIR)/gicv3.c \
             $(ARCH_DIR)/vgic.c \
+            $(ARCH_DIR)/vtimer.c \
             $(PLAT_DIR)/platform.c \
             $(PLAT_DIR)/secondary.c \
             $(PLAT_DIR)/uart.c \
@@ -106,15 +106,16 @@ $(TARGET).elf: $(OBJS) $(LDSCRIPT)
 # 清理
 clean:
 	rm -f $(OBJS) $(TARGET).elf $(TARGET).bin $(TARGET).map $(TARGET).list
-
+	rm -f include/arch/armv8/asm_defs.h
 # 辅助目标：运行 QEMU (virt, 2 cores)
+# -machine virtualization=on 用来控制进入EL2，否则默认是EL1。
 QEMU     = qemu-system-aarch64
 QEMU_OPTS = -M virt,gic-version=3 -cpu cortex-a57 \
             -machine virtualization=on \
             -nographic \
             -smp 2 \
-			-m 512M \
-			-device loader,addr=0x50000000,file=guest.bin,force-raw=on \
+            -m 512M \
+            -device loader,addr=0x50000000,file=guest_timer.bin,force-raw=on \
             -kernel $(TARGET).elf
 
 run: all
@@ -123,3 +124,49 @@ run: all
 # 调试运行（等待 gdb 连接）
 debug: all
 	$(QEMU) $(QEMU_OPTS) -s -S
+
+GUEST_SRC = guest_timer.S
+GUEST_ELF = guest_timer.elf
+GUEST_BIN = guest_timer.bin
+GUEST_LST = guest_timer.list
+
+$(GUEST_BIN): $(GUEST_SRC)
+	$(CC) -march=armv8-a -nostdlib -ffreestanding -Ttext=0x50000000 -e _guest_start -o $(GUEST_ELF) $<
+	$(OBJCOPY) -O binary $(GUEST_ELF) $@
+	${OBJDUMP} -D $(GUEST_ELF) > $(GUEST_LST)
+
+guest: $(GUEST_BIN)
+
+guest_clean:
+	rm -f $(GUEST_ELF) $(GUEST_BIN) $(GUEST_LST)
+
+# 生成汇编常量头文件
+ASM_DEFS := include/arch/armv8/asm_defs.h
+GEN_ASM_DEFS := src/arch/armv8/gen_asm_defs.c
+
+# --------------------------
+# 核心：生成同时兼容汇编和C的asm_defs.h
+# --------------------------
+# 修正：匹配任意空白字符开头的.equ行
+# --------------------------
+$(ASM_DEFS): $(GEN_ASM_DEFS) include/arch/armv8/armv8_vm.h
+	@echo "  GEN     $@"
+	@# 1. 编译生成临时汇编文件
+	@$(CC) $(CFLAGS) -S -o $@.tmp $<
+	@# 2. 核心修正：匹配行首有任意空白字符（空格/制表符）的.equ行
+	@grep '^[[:space:]]*\.equ' $@.tmp > $@.tmp2
+	@# 3. 去除行首空白字符，转换为纯.equ格式
+	@sed -i 's/^[[:space:]]*\.equ/.equ/' $@.tmp2
+	@# 4. 转换为双格式：汇编用.equ，C用#define
+	@sed -i 's/^\.equ \(.*\), \(.*\)/#ifdef __ASSEMBLER__\n.equ \1, \2\n#else\n#define \1 \2\n#endif/' $@.tmp2
+	@# 5. 添加头文件保护
+	@echo "#ifndef _ASM_DEFS_H" > $@
+	@echo "#define _ASM_DEFS_H" >> $@
+	@echo "" >> $@
+	@cat $@.tmp2 >> $@
+	@echo "" >> $@
+	@echo "#endif /* _ASM_DEFS_H */" >> $@
+	@# 6. 彻底清理临时文件
+	@rm -f $@.tmp $@.tmp2
+# 所有目标都依赖asm_defs.h，确保编译顺序正确
+$(OBJS): $(ASM_DEFS)

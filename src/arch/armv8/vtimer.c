@@ -14,11 +14,25 @@
 void virt_timer_interrupt_handler(struct arch_regs* regs)
 {
     struct armv8_vcpu_arch* vcpu = (struct armv8_vcpu_arch*)regs;
+
+    /* 确认是虚拟定时器中断 */
+    uint64_t cntv_ctl = read_cntv_ctl_el0();
+    if (!(cntv_ctl & (1 << 2))) { // ISTATUS位
+        return;
+    }
     
     /* 标记虚拟中断待注入 */
     vcpu->vtimer_pending = true;
-    
-    uart_puts("vtimer irq handler\n");
+    static uint64_t count = 0;
+    uart_puts("vtimer irq handler count \n");
+    uart_puthex(++count);
+    uart_puts("\n");
+
+    // 测试代码，guest timer重置以测试周期性中断
+    uint64_t now = read_cntvct_el0();
+    uint64_t new_cval = now + 62500000; // 62.5MHz频率，1秒
+    write_cntv_cval_el0(new_cval);
+    isb();
 }
 
 /* 定时器中断属于PPI，由GICR配置 */

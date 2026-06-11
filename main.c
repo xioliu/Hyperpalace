@@ -59,8 +59,8 @@ void main(void)
         platform_panic("Failed to add memory region");
     }
     // 映射 UART 给 VM，设备内存，读写，不可执行，不可缓存，不可共享
-    //hp_vm_add_memory_region(vm_id, UART0_BASE, UART0_SIZE,
-                        //HP_MEM_READ | HP_MEM_WRITE | HP_MEM_DEVICE);
+    hp_vm_add_memory_region(vm_id, UART0_BASE, UART0_SIZE,
+                        HP_MEM_READ | HP_MEM_WRITE | HP_MEM_DEVICE);
     
     /* 8. 设置VM入口点 */
     hp_vm_set_entry(vm_id, GUEST_PHYS_START);

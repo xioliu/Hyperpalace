@@ -116,19 +116,31 @@ void lower_exception_handler(struct arch_regs* regs)
 {
     uint64_t esr = read_esr_el2();
     uint64_t ec = (esr >> 26) & 0x3f;
+    uint64_t far = read_far_el2();
+    uint64_t elr = read_elr_el2();
 
     //uart_puts("regs: ");
     //uart_puthex((uint64_t)regs);
     //uart_puts("\n");
-
-    if (ec == 0x1) {
-        // WFI/WFE陷阱
-        //uart_puts("WFI trapped at PC ");
-        //uart_puthex(regs->elr_el2);
-        //uart_puts("\n");
-        // 跳过WFI指令
-        regs->elr_el2 += 4;
+     switch (ec) {
+        case 0x1:  // WFI/WFE陷阱
+            //uart_puts("WFI trapped\n");
+            regs->elr_el2 += 4;
+            break;
+        case 0x24:  // 阶段2数据中止（来自EL1）
+            uart_puts("EL1 Sync Exception:\n");
+            uart_puts("  ESR_EL2: "); uart_puthex(esr);
+            uart_puts("  ELR_EL2: "); uart_puthex(elr);
+            uart_puts("  FAR_EL2: "); uart_puthex(far);
+            uart_puts("Data abort\n");
+            while (1);  // 调试用，先死循环
+            break;
+        default:
+            uart_puts("Unhandled exception\n");
+            while (1);
+            break;
     }
+
 }
 
 void lower_irq_handler(struct arch_regs* regs)
@@ -140,6 +152,8 @@ void lower_irq_handler(struct arch_regs* regs)
         case VTIMER_IRQ:
             virt_timer_interrupt_handler(regs);
             break;
+        case 0: // SGI 0，用于唤醒Guest，空处理即可
+            break;
         default:
             uart_puts("Unhandled IRQ: ");
             break;
@@ -147,6 +161,7 @@ void lower_irq_handler(struct arch_regs* regs)
     
     /* 结束中断 */
     gicc_eoir(irq);
+    gicc_dir(irq);//必须要有
 }
 
 /* EL2 自身的中断处理（直接使用 GICv3 统一入口） */

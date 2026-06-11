@@ -93,4 +93,26 @@ static inline void write_cntp_ctl_el2(uint64_t val) {
     __asm__ volatile("msr S3_4_C14_C2_1, %0" :: "r"(val));
 }
 
+#define read_sysreg(reg) ({ \
+    uint64_t __val; \
+    asm volatile("mrs %0, " #reg : "=r"(__val)); \
+    __val; \
+})
+
+#define write_sysreg(reg, val) ({ \
+    uint64_t __val = (val); \
+    asm volatile("msr " #reg ", %0" :: "r"(__val) : "memory"); \
+    isb(); \
+})
+
+// 虚拟定时器（Guest使用，完整组）
+#define read_cntvct_el0()      read_sysreg(cntvct_el0)
+#define read_cntv_cval_el0()   read_sysreg(cntv_cval_el0)
+#define write_cntv_cval_el0(v) write_sysreg(cntv_cval_el0, v)
+#define read_cntv_tval_el0()   read_sysreg(cntv_tval_el0)
+#define write_cntv_tval_el0(v) write_sysreg(cntv_tval_el0, v)
+#define read_cntv_ctl_el0()    read_sysreg(cntv_ctl_el0)
+#define write_cntv_ctl_el0(v)  write_sysreg(cntv_ctl_el0, v)
+#define write_cntvoff_el2(v)   write_sysreg(cntvoff_el2, v)
+
 #endif

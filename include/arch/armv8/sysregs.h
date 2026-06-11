@@ -10,7 +10,8 @@
 #define HCR_FMO_BIT    (1U << 3)   /* 物理 FIQ 路由到 EL2 */
 #define HCR_IMO_BIT    (1U << 4)   /* 物理 IRQ 路由到 EL2 */
 #define HCR_AMO_BIT    (1U << 5)   /* 物理 SError 路由到 EL2 */
-#define HCR_TSC_BIT    (1U << 19)  /* 虚拟定时器陷阱 */
+#define HCR_VI_BIT     (1U << 7)   /* 虚拟中断 */
+#define HCR_TSC_BIT    (1U << 19)  /* SMC指令陷阱 */
 #define HCR_TGE_BIT    (1U << 27)  /* 陷阱通用异常 */
 #define HCR_RW_BIT     (1U << 31)  /* EL1 执行状态：1 = AArch64 */
 

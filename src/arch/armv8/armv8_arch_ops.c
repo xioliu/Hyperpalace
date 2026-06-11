@@ -48,7 +48,7 @@ void armv8_late_init(void)
     uint64_t hcr = read_hcr_el2();
     hcr |= HCR_VM_BIT | HCR_RW_BIT | HCR_IMO_BIT | HCR_FMO_BIT | HCR_AMO_BIT;
     hcr |= HCR_TSC_BIT;
-    //hcr |= (0x1 << 13);//WFI trap
+    hcr |= (0x1 << 13);//WFI trap
     write_hcr_el2(hcr);
 
     /* 主 CPU 的 per‑CPU 虚拟 GIC 初始化 */

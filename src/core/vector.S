@@ -1,100 +1,54 @@
 #define __ASM__ 1
 #include "exceptions.h"
+#include "asm_defs.h"
+
+.macro VM_EXIT
+    /*
+     * 此时 SP_EL2 已经指向 &current_vcpu->regs（由vcpu_arch_entry预先设置）
+     * 直接把Guest寄存器写入arch_regs结构体，零拷贝
+     */
+    stp x0,  x1,  [sp, #(8*0)]
+    stp x2,  x3,  [sp, #(8*2)]
+    stp x4,  x5,  [sp, #(8*4)]
+    stp x6,  x7,  [sp, #(8*6)]
+    stp x8,  x9,  [sp, #(8*8)]
+    stp x10, x11, [sp, #(8*10)]
+    stp x12, x13, [sp, #(8*12)]
+    stp x14, x15, [sp, #(8*14)]
+    stp x16, x17, [sp, #(8*16)]
+    stp x18, x19, [sp, #(8*18)]
+    stp x20, x21, [sp, #(8*20)]
+    stp x22, x23, [sp, #(8*22)]
+    stp x24, x25, [sp, #(8*24)]
+    stp x26, x27, [sp, #(8*26)]
+    stp x28, x29, [sp, #(8*28)]
+    str x30,      [sp, #(8*30)]
+    mrs x30, sp_el1
+    str x30,      [sp, #(8*30)]
+
+    /* 保存硬件自动存入的ELR_EL2和SPSR_EL2 */
+    mrs x0, ELR_EL2
+    mrs x1, SPSR_EL2
+    stp x0, x1, [sp, #(8*32)]
+
+    /* 切换栈之前，先把arch_regs地址保存到x0 */
+    mov x0, sp
+
+    /*
+     * 切换到CPU专属栈，运行C代码处理异常
+     * TPIDR_EL2 永远保存当前CPU的struct cpu指针
+     */
+    mrs x1, tpidr_el2
+    ldr x2, =(CPU_STACK_OFF + CPU_STACK_SIZE)
+    add x1, x1, x2
+    mov sp, x1
+.endm
+
 
 .section .text.vectors, "ax"
-.global vectors
 .balign 2048
+.global vectors
 vectors:
-
-/* 宏：保存 VM 上下文到当前 vCPU 的 arch 结构 */
-.macro SAVE_VM_CTX
-    /* 1. 保存原始 x18 到栈上（临时） */
-    str x18, [sp, #-16]!
-
-    /* 2. 从 TPIDR_EL2 获取 arch 指针 */
-    mrs x18, tpidr_el2
-    cbz x18, 1f
-
-    /* 3. 保存 x0-x17（偏移 0x00 - 0x88） */
-    stp x0,  x1,  [x18, #16 * 0]
-    stp x2,  x3,  [x18, #16 * 1]
-    stp x4,  x5,  [x18, #16 * 2]
-    stp x6,  x7,  [x18, #16 * 3]
-    stp x8,  x9,  [x18, #16 * 4]
-    stp x10, x11, [x18, #16 * 5]
-    stp x12, x13, [x18, #16 * 6]
-    stp x14, x15, [x18, #16 * 7]
-    stp x16, x17, [x18, #16 * 8]
-
-    /* 4. 保存 x19-x28（偏移 0x90 - 0xD0） */
-    stp x19, x20, [x18, #16 * 9]
-    stp x21, x22, [x18, #16 * 10]
-    stp x23, x24, [x18, #16 * 11]
-    stp x25, x26, [x18, #16 * 12]
-    stp x27, x28, [x18, #16 * 13]
-
-    /* 5. 保存 x29, x30（偏移 0xE0） */
-    stp x29, x30, [x18, #16 * 14]
-
-    /* 6. 保存原始 x18（偏移 0xF0） */
-    ldr x19, [sp]           /* 从栈中取回原始 x18 */
-    str x19, [x18, #16 * 15]
-
-    /* 7. 恢复栈 */
-    add sp, sp, #16
-
-    /* 8. 保存 sp_el0, sp_el1, elr_el2, spsr_el2（偏移 0xF8-0x110） */
-    mrs x0, sp_el0
-    mrs x1, sp_el1
-    mrs x2, elr_el2
-    mrs x3, spsr_el2
-    str x0, [x18, #(31 * 8)]      /* sp_el0 @ 248 */
-    str x1, [x18, #(32 * 8)]      /* sp_el1 @ 256 */
-    str x2, [x18, #(33 * 8)]      /* elr_el2 @ 264 */
-    str x3, [x18, #(34 * 8)]      /* spsr_el2 @ 272 */
-
-1:  /* 若 arch 为空则在此死循环（调试时可改为停机） */
-.endm
-
-/* 宏：从 arch 恢复 VM 上下文并 eret */
-.macro RESTORE_VM_CTX_AND_ERET
-    mrs x18, tpidr_el2
-    cbz x18, .
-
-    /* 1. 恢复 sp_el0, sp_el1, elr_el2, spsr_el2 */
-    ldr x0, [x18, #(31 * 8)]
-    ldr x1, [x18, #(32 * 8)]
-    ldr x2, [x18, #(33 * 8)]
-    ldr x3, [x18, #(34 * 8)]
-    msr sp_el0, x0
-    msr sp_el1, x1
-    msr elr_el2, x2
-    msr spsr_el2, x3
-
-    /* 2. 恢复通用寄存器 x0-x28 */
-    ldp x0,  x1,  [x18, #16 * 0]
-    ldp x2,  x3,  [x18, #16 * 1]
-    ldp x4,  x5,  [x18, #16 * 2]
-    ldp x6,  x7,  [x18, #16 * 3]
-    ldp x8,  x9,  [x18, #16 * 4]
-    ldp x10, x11, [x18, #16 * 5]
-    ldp x12, x13, [x18, #16 * 6]
-    ldp x14, x15, [x18, #16 * 7]
-    ldp x16, x17, [x18, #16 * 8]
-    ldp x19, x20, [x18, #16 * 9]
-    ldp x21, x22, [x18, #16 * 10]
-    ldp x23, x24, [x18, #16 * 11]
-    ldp x25, x26, [x18, #16 * 12]
-    ldp x27, x28, [x18, #16 * 13]
-    ldp x29, x30, [x18, #16 * 14]
-
-    /* 3. 恢复 x18（偏移 0xF0） */
-    ldr x19, [x18, #16 * 15]
-    mov x18, x19
-
-    eret
-.endm
-
 /* ========== 异常向量表 ========== */
 .balign 128
 curr_el_sp0_sync:
@@ -112,12 +66,9 @@ curr_el_sp0_serr:
 .balign 128
 curr_el_spx_sync:
     bl handle_hyp_sync
-    eret
 .balign 128
 curr_el_spx_irq:
-    SAVE_VM_CTX
     bl hyp_irq_handler
-    RESTORE_VM_CTX_AND_ERET
 .balign 128
 curr_el_spx_fiq:
     b .
@@ -129,19 +80,15 @@ curr_el_spx_serr:
 
 .balign 128
 lower_el_aarch64_sync:
-    SAVE_VM_CTX
-    mov x0, #0x00
-    mov x1, x18       /* 第二个参数：arch 指针（但此时 x18 已被覆盖为基址？注意 x18 在 SAVE 后仍是基址，但 arch 指针已在 tpidr_el2，可以直接读取） */
+    VM_EXIT
     bl lower_exception_handler
-    RESTORE_VM_CTX_AND_ERET
+    b armv8_vcpu_enter
 
 .balign 128
 lower_el_aarch64_irq:
-    SAVE_VM_CTX
-    mov x0, #0x01
-    mov x1, x18
-    bl lower_exception_handler
-    RESTORE_VM_CTX_AND_ERET
+    VM_EXIT
+    bl lower_irq_handler
+    b armv8_vcpu_enter
 
 .balign 128
 lower_el_aarch64_fiq:
@@ -163,3 +110,42 @@ lower_el_aarch32_fiq:
 .balign 128
 lower_el_aarch32_serr:
     b .
+
+.section .text, "ax"
+.global armv8_vcpu_enter
+armv8_vcpu_enter:
+    /*
+     * 输入：x0 = &armv8_vcpu_arch（调用C函数时传入）
+     * 第一步：把SP_EL2设置为&vcpu->regs，这是零拷贝的核心
+     */
+    mrs x0, tpidr_el2
+    add x0, x0, #VCPU_REGS_OFF
+    mov sp, x0
+
+    /* 从arch_regs恢复系统寄存器 */
+    ldp x0, x1, [sp, #(8*32)]
+    msr ELR_EL2, x0
+    msr SPSR_EL2, x1
+
+    /* 恢复所有通用寄存器 */
+    ldp x0,  x1,  [sp, #(8*0)]
+    ldp x2,  x3,  [sp, #(8*2)]
+    ldp x4,  x5,  [sp, #(8*4)]
+    ldp x6,  x7,  [sp, #(8*6)]
+    ldp x8,  x9,  [sp, #(8*8)]
+    ldp x10, x11, [sp, #(8*10)]
+    ldp x12, x13, [sp, #(8*12)]
+    ldp x14, x15, [sp, #(8*14)]
+    ldp x16, x17, [sp, #(8*16)]
+    ldp x18, x19, [sp, #(8*18)]
+    ldp x20, x21, [sp, #(8*20)]
+    ldp x22, x23, [sp, #(8*22)]
+    ldp x24, x25, [sp, #(8*24)]
+    ldp x26, x27, [sp, #(8*26)]
+    ldp x28, x29, [sp, #(8*28)]
+    ldr x30,      [sp, #(8*31)]
+    msr sp_el1, x30
+    ldr x30,      [sp, #(8*30)]
+
+    /* 进入Guest，SP_EL2保持为&vcpu->regs */
+    eret
