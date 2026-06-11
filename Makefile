@@ -23,8 +23,8 @@ INCLUDE_DIRS = include \
 
 # 源文件
 # 汇编文件
-ASM_SRCS  = $(CORE_DIR)/boot.S \
-            $(CORE_DIR)/vector.S \
+ASM_SRCS  = $(ARCH_DIR)/boot.S \
+            $(ARCH_DIR)/vector.S \
             $(PLAT_DIR)/boot_plat.S
 
 # C 源文件
