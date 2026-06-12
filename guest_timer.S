@@ -31,7 +31,7 @@ _guest_start:
     
     /* 等待中断 */
 loop:
-    wfi
+    //wfi
     b loop
 
 /* --------------------------
@@ -67,13 +67,21 @@ uart_puts_done:
 .balign 2048
 vectors:
     .balign 128
-    b .  // 同步异常
+    b .  // sync EL1t
     .balign 128
-    b irq_handler  // IRQ
+    b .  // IRQ EL1t
     .balign 128
-    b .  // FIQ
+    b .  // FIQ EL1t
     .balign 128
-    b .  // SError
+    b .  // SError EL1t
+    .balign 128
+    b .  // sync EL1h
+    .balign 128
+    b irq_handler  // IRQ EL1h
+    .balign 128
+    b .  // FIQ EL1h
+    .balign 128
+    b .  // SError EL1h
 
 irq_handler:
     /* 保存上下文 */
