@@ -111,6 +111,27 @@ fatal:
     while (1) { __asm__ volatile("wfi"); }
 }
 #endif
+
+/* HVC 处理函数 */
+static void handle_hvc(struct arch_regs *regs)
+{
+    uint32_t fn = (uint32_t)regs->x[0];   /* x0 传递功能号 */
+    switch (fn) {
+        case 0:
+            /* 空操作，可用于测试 */
+            break;
+        case 1:
+            /* 控制台输出：x1 为字符串指针 */
+            uart_puts((const char *)regs->x[1]);
+            break;
+        default:
+            uart_puts("Unknown HVC call: ");
+            uart_puthex(fn);
+            uart_puts("\n");
+            break;
+    }
+}
+
 /* 从 vector.S 调用的低异常级别入口 */
 void lower_exception_handler(struct arch_regs* regs)
 {
@@ -125,6 +146,10 @@ void lower_exception_handler(struct arch_regs* regs)
      switch (ec) {
         case 0x1:  // WFI/WFE陷阱
             //uart_puts("WFI trapped\n");
+            regs->elr_el2 += 4;
+            break;
+        case 0x16: // HVC 指令
+            handle_hvc(regs);
             regs->elr_el2 += 4;
             break;
         case 0x24:  // 阶段2数据中止（来自EL1）

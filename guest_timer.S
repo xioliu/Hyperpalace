@@ -28,6 +28,10 @@ _guest_start:
     /* 打印启动信息 */
     adr x0, guest_boot_msg
     bl uart_puts
+
+    //mov x0, #1
+    //ldr x1, =msg
+    //hvc #0
     
     /* 等待中断 */
 loop:
@@ -119,3 +123,4 @@ irq_handler:
 .section .rodata
 guest_boot_msg: .asciz "Guest init done\n"
 timer_irq_msg:  .asciz "Guest receives an irq\n"
+msg: .asciz "Hello from Guest via HVC\n"
