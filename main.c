@@ -69,6 +69,7 @@ void main(void)
     
     /* 9. 静态绑定：VM0 的 vCPU 运行在 CPU0，VM1 运行在 CPU1 */
     hp_vm_bind_vcpu(vm_id, 0U);
+    hp_vm_assign_interrupt(vm_id, 27);
 
     platform_start_secondary_cpus();
 

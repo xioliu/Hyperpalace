@@ -176,6 +176,7 @@ void lower_irq_handler(struct arch_regs* regs)
     switch (irq) {
         case VTIMER_IRQ:
             virt_timer_interrupt_handler(regs);
+            hp_irq_dispatch(irq);
             break;
         case 0: // SGI 0，用于唤醒Guest，空处理即可
             break;

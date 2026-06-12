@@ -2,6 +2,7 @@
 #include "gicv3.h"
 #include "vgic.h"
 #include "sysregs.h"
+#include "uart.h"
 
 #define VGIC_LR_COUNT      16U
 #define DEFAULT_PRIORITY   0x80U
@@ -24,17 +25,20 @@ void armv8_vgic_inject(uint32_t irq_id, uint8_t priority)
 {
     for (uint32_t i = 0U; i < VGIC_LR_COUNT; i++) {
         uint64_t lr = read_ich_lr_el2(i);
-        if ((lr & 0x1U) == 0U) {   /* State bits [1:0] == 0 (Invalid) */
-            uint64_t new_lr = (irq_id & 0x3FFU)
-                            | (((uint64_t)priority & 0xFCU) << 32)   /* priority[7:2] */
-                            | 0x1U                                    /* State: Pending */
-                            | (1U << 10)                              /* HW */
-                            | ((uint64_t)irq_id << 48);               /* pINTID */
+        if ((lr & (0x3ULL << 62)) == 0U) {   /* State bits [63:62] == 0 (Invalid) */
+            uint64_t new_lr = ((irq_id & 0x1FFFULL) << 32)            /* pINTID[44:32] */
+                            | (0x1ULL << 62)                          /* State: Pending */
+                            | (0x1ULL << 61)                          /* HW[61] */
+                            | ((uint64_t)priority << 48);             /* priority[55:48] */
             write_ich_lr_el2(i, new_lr);
+            uart_puts("armv8_vgic_inject:");
+            uart_puthex(new_lr);
+            uart_puts("\n");
             return;
         }
     }
     /* LR 已满，触发下溢（设置 VI） */
+    uart_puts("set vi\n");
     uint64_t hcr = read_hcr_el2();
     hcr |= (1U << 3);   /* VI */
     write_hcr_el2(hcr);
