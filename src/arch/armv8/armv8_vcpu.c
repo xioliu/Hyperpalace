@@ -35,7 +35,6 @@ int32_t armv8_vcpu_init(hp_vcpu_id_t vcpu_id)
     /* 设置初始寄存器状态 */
     arch->regs.elr_el2 = entry;
     arch->regs.spsr_el2 = 0x345U;  /* EL1h, 异常屏蔽禁用 */
-    arch->regs.sp_el1 = ((uint64_t)arch);
 
     /* 初始化虚拟定时器 */
     arch->cntv_cval = 62500000;
