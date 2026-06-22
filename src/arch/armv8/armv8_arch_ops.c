@@ -46,7 +46,11 @@ void armv8_late_init(void)
 {
     /* 配置HCR_EL2等 */
     uint64_t hcr = read_hcr_el2();
-    hcr |= HCR_VM_BIT | HCR_RW_BIT | HCR_IMO_BIT | HCR_FMO_BIT | HCR_AMO_BIT;
+    hcr |= HCR_VM_BIT;
+    hcr |= HCR_RW_BIT;
+    //hcr |= HCR_IMO_BIT;//中断直通guest处理是不能置位的
+    hcr |= HCR_FMO_BIT;
+    hcr |= HCR_AMO_BIT;
     hcr |= HCR_TSC_BIT;
     hcr |= (0x1 << 13);//WFI trap
     write_hcr_el2(hcr);
@@ -104,6 +108,14 @@ int32_t armv8_irq_assign(hp_vm_id_t vm_id, uint32_t irq_id)
 
     /* 使能中断 */
     gicv3_enable_irq(irq_id, true);
+
+    if (irq_id >= 32U) {   /* SPI 中断，PPI 和 SGI 已在 gicr 中处理 */
+        uint32_t reg = irq_id / 32U;
+        uint32_t bit = irq_id % 32U;
+        uint32_t igroupr = mmio_read32(GICD_BASE + GICD_IGROUPR(reg));
+        igroupr |= (1U << bit);
+        mmio_write32(GICD_BASE + GICD_IGROUPR(reg), igroupr);
+    }
 
     return 0;
 }
