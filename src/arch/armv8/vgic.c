@@ -65,7 +65,7 @@ void armv8_vgic_handle_maintenance(uint32_t misr)
     if (misr & (1U << 1)) {       /* ICH_MISR_EL2.U */
         /* 尝试清理一些已无效的 LR 或直接置 VI */
         uint64_t hcr = read_hcr_el2();
-        hcr |= (1U << 3);         /* VI = 1，通知 VM 有挂起中断 */
+        hcr |= (1U << 7);         /* VI = 1，通知 VM 有挂起中断 */
         write_hcr_el2(hcr);
     }
 

@@ -178,6 +178,9 @@ void lower_irq_handler(struct arch_regs* regs)
             virt_timer_interrupt_handler(regs);
             hp_irq_dispatch(irq);
             break;
+        case 25:
+            gicv3_maintenance_handler();
+            break;
         case 0: // SGI 0，用于唤醒Guest，空处理即可
             break;
         default:
