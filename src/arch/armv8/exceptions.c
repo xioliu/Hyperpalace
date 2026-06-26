@@ -139,7 +139,14 @@ void lower_exception_handler(struct arch_regs* regs)
     uint64_t ec = (esr >> 26) & 0x3f;
     uint64_t far = read_far_el2();
     uint64_t elr = read_elr_el2();
-
+    uint64_t sp_el1 = read_sysreg(sp_el1);
+    uint64_t sp_el0 = read_sysreg(sp_el0);
+            uart_puts("EL1 Sync Exception:\n");
+            uart_puts("  ESR_EL2: "); uart_puthex(esr);
+            uart_puts("  ELR_EL2: "); uart_puthex(elr);
+            uart_puts("  FAR_EL2: "); uart_puthex(far);
+            uart_puts("  sp_el0: "); uart_puthex(sp_el0);
+            uart_puts("  sp_el1: "); uart_puthex(sp_el1);
     //uart_puts("regs: ");
     //uart_puthex((uint64_t)regs);
     //uart_puts("\n");
@@ -153,11 +160,8 @@ void lower_exception_handler(struct arch_regs* regs)
             regs->elr_el2 += 4;
             break;
         case 0x24:  // 阶段2数据中止（来自EL1）
-            uart_puts("EL1 Sync Exception:\n");
-            uart_puts("  ESR_EL2: "); uart_puthex(esr);
-            uart_puts("  ELR_EL2: "); uart_puthex(elr);
-            uart_puts("  FAR_EL2: "); uart_puthex(far);
-            uart_puts("Data abort\n");
+
+            uart_puts("\nData abort\n");
             while (1);  // 调试用，先死循环
             break;
         default:
@@ -172,6 +176,7 @@ void lower_irq_handler(struct arch_regs* regs)
 {
     /* 读取中断号 */
     int irq = gicc_iar();
+    uart_puts("lower_irq_handler\n");
     
     switch (irq) {
         case VTIMER_IRQ:

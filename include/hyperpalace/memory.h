@@ -28,7 +28,7 @@
 #define HP_PAGE_SIZE_1G     0x40000000U /* 1GB */
 
 /* 内存池配置 */
-#define HP_MAX_PAGE_TABLES  64U        /* 最大页表数量 */
+#define HP_MAX_PAGE_TABLES  1024U        /* 最大页表数量 */
 
 /* 物理地址和虚拟地址类型 */
 typedef uint64_t hp_paddr_t;

@@ -6,6 +6,7 @@
 #define CNTHP_CTL_ENABLE ((0<<1) | (1<<0))
 
 void timer_init(void);
+void timer_init_cpu1(void);
 void virt_timer_interrupt_handler(struct arch_regs* regs);
 void timer_handler(void);
 void el2_phys_timer_init(void);

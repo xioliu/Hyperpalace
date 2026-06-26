@@ -205,6 +205,7 @@ SYSREG_GEN_ACCESSORS(ich_hcr_el2)
 SYSREG_GEN_ACCESSORS(icc_iar1_el1)
 SYSREG_GEN_ACCESSORS(icc_eoir1_el1)
 SYSREG_GEN_ACCESSORS(icc_dir_el1)
+SYSREG_GEN_ACCESSORS(ich_elrsr_el2)
 
 static inline uint32_t gicc_iar()
 {
@@ -420,5 +421,11 @@ void gicr_set_priority(uint32_t irq, uint32_t pri);
 void gicr_clear_pending(uint32_t irq);
 void gicr_enable_irq(uint32_t irq);
 void gicr_disable_irq(uint32_t irq);
+
+void gicr_ppi_config_cpu1(uint32_t irq, uint32_t cfg);
+void gicr_set_priority_cpu1(uint32_t irq, uint32_t pri);
+void gicr_clear_pending_cpu1(uint32_t irq);
+void gicr_enable_irq_cpu1(uint32_t irq);
+void gicr_disable_irq_cpu1(uint32_t irq);
 
 #endif /* GICV3_H */

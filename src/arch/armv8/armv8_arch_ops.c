@@ -51,7 +51,7 @@ void armv8_late_init(void)
     //hcr |= HCR_IMO_BIT;//中断直通guest处理是不能置位的
     hcr |= HCR_FMO_BIT;
     hcr |= HCR_AMO_BIT;
-    hcr |= HCR_TSC_BIT;
+    //hcr |= HCR_TSC_BIT;
     hcr |= (0x1 << 13);//WFI trap
     write_hcr_el2(hcr);
 
@@ -63,7 +63,8 @@ void armv8_late_init(void)
 void armv8_early_init_secondary(void)
 {
     /* 1. 使能当前 CPU 的 GIC CPU 接口 */
-    gicv3_init_cpu();
+    //gicv3_init_cpu();
+    armv8_early_init();
 
     /* 2. 使能 FP/SIMD 访问（Guest 可能需要） */
     uint64_t cpacr;
@@ -72,7 +73,8 @@ void armv8_early_init_secondary(void)
     __asm__ volatile("msr cpacr_el1, %0" : : "r"(cpacr));
 
     /* 3. 虚拟 GIC 每 CPU 初始化 */
-    armv8_vgic_init();
+    //armv8_vgic_init();
+    armv8_late_init();
 }
 
 /* 获取当前 CPU ID */

@@ -50,7 +50,7 @@
 #define ARMV8_MAIR_ATTR1_NORMAL 0xFFU   /* Normal WBWA */
 
 /* 页表池最大页表数 */
-#define HP_MAX_PAGE_TABLES      64U
+#define HP_MAX_PAGE_TABLES      1024U
 
 /* 链接器符号声明 */
 extern uint8_t __stage2_pool_start[];

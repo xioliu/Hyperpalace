@@ -4,7 +4,8 @@
 #include "sysregs.h"
 #include "uart.h"
 
-#define VGIC_LR_COUNT      16U
+/* QEMU 7.2.0 LR是4个 */
+#define VGIC_LR_COUNT      8U
 #define DEFAULT_PRIORITY   0x80U
 
 #if 0
@@ -49,7 +50,7 @@ void armv8_vgic_inject(uint32_t irq_id, uint8_t priority)
 /* 初始化 vGIC 接口 */
 void armv8_vgic_init(void)
 {
-    write_ich_hcr_el2(1U);   /* En = 1 */
+    write_ich_hcr_el2(read_ich_hcr_el2() | 0x1U);   /* En = 1 */
 }
 
 /* 处理虚拟化维护中断 */

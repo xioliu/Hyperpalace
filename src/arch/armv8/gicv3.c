@@ -1,9 +1,11 @@
+#include "hp_types.h"
 #include "platform.h"
 #include "gicv3.h"
 #include "armv8_vm.h"
 #include "sysregs.h"
 #include "vgic.h"
 #include "vtimer.h"
+#include "arch_ops.h"
 #include "uart.h"
 #include "util.h"
 
@@ -31,23 +33,42 @@
 #define GIC_SPI_BASE         32U
 #define GIC_MAX_SPI          1019U
 
-void gicr_init(void)
+void gicr_init(uint32_t cpuid)
 {
     uint32_t i, nr;
     uart_puts("gicr_init\n");
 
-    *REG_GIC_GICR_WAKER &= ~GICR_WAKER_ProcessorSleep_BIT;
-    while(*REG_GIC_GICR_WAKER & GICR_WAKER_ChildrenASleep_BIT);
+    if(cpuid == 0) {
+        *REG_GIC_GICR_WAKER &= ~GICR_WAKER_ProcessorSleep_BIT;
+        while(*REG_GIC_GICR_WAKER & GICR_WAKER_ChildrenASleep_BIT);
 
-    nr = NUMBER(GIC_INT_MAX, GIC_GICR_INT_PER_REG);
+        nr = NUMBER(GIC_INT_MAX, GIC_GICR_INT_PER_REG);
 
-    *REG_GIC_GICR_IGROUPR0 = ~0U;
-    *REG_GIC_GICR_ICENABLER0 = ~0U;
-    *REG_GIC_GICR_ICPENDR0 = ~0U;
-    *REG_GIC_GICR_ICACTIVER0 = ~0U;
-    for(i = 0; i < nr; i++)
-        *REG_GIC_GICR_IPRIORITYR(i) = ~0U;
-}
+        *REG_GIC_GICR_IGROUPR0 = ~0U;//0x080b0080
+        *REG_GIC_GICR_ICENABLER0 = ~0U;//0x080b0180
+        *REG_GIC_GICR_ICPENDR0 = ~0U;//0x080b0280
+        *REG_GIC_GICR_ICACTIVER0 = ~0U;//0x080b0380
+
+        for(i = 0; i < nr; i++)
+            *REG_GIC_GICR_IPRIORITYR(i) = ~0U;
+    } 
+    else if(cpuid == 1) {
+        uart_puts("2222\n");
+        *(volatile uint32_t *)(uintptr_t)(0x080c0014ULL) &= ~GICR_WAKER_ProcessorSleep_BIT;
+        while(*(volatile uint32_t *)(uintptr_t)(0x080c0014ULL) & GICR_WAKER_ChildrenASleep_BIT);
+
+        nr = NUMBER(GIC_INT_MAX, GIC_GICR_INT_PER_REG);
+        *(volatile uint32_t *)(uintptr_t)(0x080d0080ULL) = ~0U;
+        *(volatile uint32_t *)(uintptr_t)(0x080d0180ULL) = ~0U;
+        *(volatile uint32_t *)(uintptr_t)(0x080d0280ULL) = ~0U;
+        *(volatile uint32_t *)(uintptr_t)(0x080d0380ULL) = ~0U;
+
+        for(i = 0; i < nr; i++)
+            *(volatile uint32_t *)(uintptr_t)(0x080d0400ULL + i * 4) = ~0U;
+    }
+} 
+
+
 
 /* ========== 全局初始化 ========== */
 void gicv3_init(void)
@@ -74,8 +95,6 @@ void gicv3_init(void)
     write_icc_sre_el2(val);
     isb();
 
-    gicr_init();
-
     icc_write_icc_pmr(0xFF);      /* 最低优先级掩码 */
     icc_write_icc_bpr1(0x0);      /* 二进制点 */
     icc_write_icc_ctlr(0x2);      /* 使能 Group1 */
@@ -89,6 +108,13 @@ void gicv3_init_cpu(void)
 {
     uint64_t val;
     uint32_t i, max_lr;
+    uart_puts("gicv3_init_cpu ");
+    uint32_t cpu_id = hp_arch_get_current_cpu_id();
+    uart_puthex(cpu_id);
+    uart_puts("\n");
+
+    /* 初始化当前 CPU 的 Redistributor */
+    gicr_init(cpu_id);
 
     // 先清零ICH_HCR_EL2（禁用所有虚拟化功能）
     write_ich_hcr_el2(0);
@@ -101,8 +127,11 @@ void gicv3_init_cpu(void)
     write_ich_hcr_el2(val);
     isb();
 
-    // 获取LR寄存器数量（QEMU 7.2.0是8个）
+    // 获取LR寄存器数量（QEMU 7.2.0是4个）
     max_lr = (read_ich_vtr_el2() & 0xF) + 1;
+    //uart_puts("max num of lr is ");
+    //uart_puthex(max_lr);
+    //uart_puts("\n");
 
     // 清空所有LR寄存器（避免残留旧中断）
     for (i = 0; i < max_lr; i++) {
@@ -153,6 +182,16 @@ void gicr_set_priority(uint32_t irq, uint32_t pri)
     *REG_GIC_GICR_IPRIORITYR(irq / GIC_GICR_INTPRIORITY_PER_REG) = value;
 }
 
+void gicr_set_priority_cpu1(uint32_t irq, uint32_t pri)
+{
+    uint32_t offset, value;
+
+    offset = (irq % GIC_GICR_INTPRIORITY_PER_REG) * GIC_GICR_INTPRIORITY_SIZE_PER_REG;
+    value = *(volatile uint32_t *)0x080d0418;
+    value &= ~((uint32_t)0xff << offset);
+    value |= (pri << offset);
+    *(volatile uint32_t *)0x080d0418 = value;
+}
 
 void gicr_sgi_config(uint32_t irq, uint32_t cfg)
 {
@@ -176,9 +215,25 @@ void gicr_ppi_config(uint32_t irq, uint32_t cfg)
     *REG_GIC_GICR_ICFGR1 = value;
 }
 
+void gicr_ppi_config_cpu1(uint32_t irq, uint32_t cfg)
+{
+    uint32_t offset, value;
+
+    offset = ((irq - GIC_SGI_MAX)% GIC_GICR_ICFGR_PER_REG) * GIC_GICR_ICFGR_BITS_PER_REG;
+    value = *(volatile uint32_t *)0x080d0c04;
+    value &= ~((uint32_t)0x3 << offset);
+    value |= (cfg << offset);
+    *(volatile uint32_t *)0x080d0c04 = value;
+}
+
 void gicr_clear_pending(uint32_t irq)
 {
     *REG_GIC_GICR_ICPENDR0 |= 1 << (irq % GIC_GICR_ICPENDR_PER_REG);
+}
+
+void gicr_clear_pending_cpu1(uint32_t irq)
+{
+    *(volatile uint32_t *)0x080d0280 |= 1 << (irq % GIC_GICR_ICPENDR_PER_REG);
 }
 
 void gicr_enable_irq(uint32_t irq)
@@ -186,9 +241,19 @@ void gicr_enable_irq(uint32_t irq)
     *REG_GIC_GICR_ISENABLER0 |= 1 << (irq % GIC_GICR_ISENABLER_PER_REG);
 }
 
+void gicr_enable_irq_cpu1(uint32_t irq)
+{
+    *(volatile uint32_t *)0x080d0100 |= 1 << (irq % GIC_GICR_ISENABLER_PER_REG);
+}
+
 void gicr_disable_irq(uint32_t irq)
 {
     *REG_GIC_GICR_ICENABLER0 |= 1 << (irq % GIC_GICR_ICENABLER_PER_REG);
+}
+
+void gicr_disable_irq_cpu1(uint32_t irq)
+{
+    *(volatile uint32_t *)0x080d0180 |= 1 << (irq % GIC_GICR_ICENABLER_PER_REG);
 }
 
 /* ========== 辅助函数 ========== */

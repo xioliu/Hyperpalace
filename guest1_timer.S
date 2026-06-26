@@ -121,6 +121,6 @@ irq_handler:
    字符串常量
    -------------------------- */
 .section .rodata
-guest_boot_msg: .asciz "Guest init done\n"
-timer_irq_msg:  .asciz "Guest receives an irq\n"
-msg: .asciz "Hello from Guest via HVC\n"
+guest_boot_msg: .asciz "Guest 1 init done\n"
+timer_irq_msg:  .asciz "Guest 1 receives an irq\n"
+msg: .asciz "Hello from Guest 1 via HVC\n"

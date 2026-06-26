@@ -46,6 +46,16 @@ void timer_init(void)
     gicr_enable_irq(VTIMER_IRQ);
 }
 
+void timer_init_cpu1(void)
+{
+    uart_puts("vtimer_init_cpu1\n");
+
+    gicr_ppi_config_cpu1(VTIMER_IRQ, 0);//GIC_GICR_ICFGR_LEVEL
+    gicr_set_priority_cpu1(VTIMER_IRQ, 0xa0);
+    gicr_clear_pending_cpu1(VTIMER_IRQ);
+    gicr_enable_irq_cpu1(VTIMER_IRQ);
+}
+
 #if 0
 void timer_handler(void)
 {

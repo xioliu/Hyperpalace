@@ -5,6 +5,7 @@
 #include "arch_ops.h"
 #include "errno.h"
 #include "string.h"
+#include "uart.h"
 
 /* 静态池 */
 static struct hp_vm g_vm_pool[HP_CONFIG_MAX_VMS];
@@ -167,7 +168,8 @@ void hp_vcpu_run_current(void)
     
     struct hp_vcpu *vcpu = &g_vcpu_pool[cpu_id];
     if (vcpu->state != HP_VCPU_STATE_CREATED) {
-        while (1) { __asm__ volatile("wfi"); }
+        uart_puts("ERROR: vCPU not created!\n");
+        while (1) { }
     }
     
     vcpu->state = HP_VCPU_STATE_RUNNING;

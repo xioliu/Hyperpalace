@@ -16,7 +16,7 @@
 void platform_init(void);
 
 /* 启动所有辅助 CPU */
-void platform_start_secondary_cpus(void);
+void platform_start_secondary_cpus(uint32_t cpu_mask);
 
 /* 辅助 CPU per‑CPU 初始化 */
 void platform_init_secondary(void);

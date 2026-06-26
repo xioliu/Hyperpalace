@@ -34,6 +34,11 @@
 #define HP_CONFIG_MAX_VCPUS_PER_VM   4U
 #endif
 
+/* 单个VM最多支持的IRQ数量 */
+#ifndef HP_CONFIG_MAX_IRQS_PER_VM
+#define HP_CONFIG_MAX_IRQS_PER_VM   32U
+#endif
+
 /* 错误码 */
 #define HP_CONFIG_OK              0
 #define HP_CONFIG_ERR_NODATA     -1
@@ -56,7 +61,7 @@ typedef struct {
     const char *name;                       /* VM名称（指向设备树字符串） */
     uint32_t vmid;                          /* VM ID */
     uint32_t num_cpus;                      /* 分配的CPU数量 */
-    uint32_t assigned_cpus[HP_CONFIG_MAX_CPUS_PER_VM];  /* CPU ID数组 */
+    uint32_t cpu_mask;                      /* 分配的CPU */
     
     uint32_t num_ram_regions;               /* RAM区域数量 */
     hp_mem_region_t ram_regions[HP_CONFIG_MAX_RAM_REGIONS_PER_VM];
@@ -65,8 +70,11 @@ typedef struct {
     hp_mem_region_t device_regions[HP_CONFIG_MAX_DEV_REGIONS_PER_VM];
     
     uint64_t load_addr;                     /* 镜像加载地址 */
-    uint64_t entry_point;                   /* 入口地址 */
+    uint64_t entry;                         /* 入口地址 */
     uint64_t image_size;                    /* 镜像大小 */
+
+    uint32_t num_irqs;                      /* 分配的IRQ数量 */
+    uint32_t irqs[HP_CONFIG_MAX_IRQS_PER_VM];  /* IRQ数组 */
 } hp_vm_config_t;
 
 /*

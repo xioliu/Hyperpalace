@@ -32,7 +32,6 @@ platform_secondary_init_and_wait:
     mov  x21, x30
 
     /* 计算 &cpu_release_addr[CPU] */
-    sub  x0, x0, #1            /* 转为 0 基索引 */
     adr  x19, cpu_release_addr
     mov  x20, #8
     madd x19, x0, x20, x19     /* x19 = &cpu_release_addr[CPU] */
@@ -40,6 +39,8 @@ platform_secondary_init_and_wait:
 1:
     ldr  x20, [x19]
     cbz  x20, 1b               /* 等待非零 */
+
+    br   x20
 
     /* 主 CPU 已写入释放地址，现在直接返回 */
     ret

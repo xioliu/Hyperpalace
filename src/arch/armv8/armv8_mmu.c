@@ -252,6 +252,7 @@ static int32_t stage2_map_range(uint64_t *pgd, uint64_t guest_pa, uint64_t host_
             if ((desc & 0x3U) == 0U) {
                 void *new_table = armv8_pt_pool_alloc(&g_armv8_mmu_ctx.pt_pool);
                 if (new_table == NULL) {
+                    uart_puts("pte HP_ENOMEM\n");
                     return HP_ENOMEM;
                 }
                 *pte = ((uint64_t)new_table & ARMV8_PTE_ADDR_MASK) | ARMV8_PTE_TYPE_TABLE;
@@ -259,6 +260,7 @@ static int32_t stage2_map_range(uint64_t *pgd, uint64_t guest_pa, uint64_t host_
             } else if ((desc & 0x3U) == ARMV8_PTE_TYPE_TABLE) {
                 table = (uint64_t *)(desc & ARMV8_PTE_ADDR_MASK);
             } else {
+                uart_puts("pte exist\n");
                 return HP_EEXIST;      /* 冲突 */
             }
         }

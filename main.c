@@ -13,12 +13,14 @@
 #include "armv8_vm.h"
 #include "armv8_vm_priv.h"
 #include "vtimer.h"
+#include "config.h"
 
-#define GUEST_PHYS_START 0x50000000ULL
-#define GUEST_SIZE       0x2000000ULL   // 32MB 示例
+extern const hp_vm_config_t vm_configs[];
 
 void main(void)
 {
+    int32_t ret;
+    uint32_t all_cpu_mask = 0U;
     /* ===== 第一阶段：系统级初始化 ===== */
     
     /* 1. 架构早期初始化（异常向量表等） */
@@ -44,34 +46,66 @@ void main(void)
     
     /* ===== 第三阶段：创建和配置VM ===== */
     
-    /* 6. 创建VM实例 */
-    hp_vm_id_t vm_id = hp_vm_create();
-    if (vm_id == HP_INVALID_VM_ID) {
-        platform_panic("Failed to create VM");
+    for (uint32_t i = 0U; i < vm_configs_count; i++) {
+        all_cpu_mask |= vm_configs[i].cpu_mask;
+        /* 创建 VM 实例 */
+        hp_vm_id_t vm_id = hp_vm_create();
+        if (vm_id == HP_INVALID_VM_ID) {
+            platform_panic("Failed to create VM");
+        }
+
+        /* 添加 RAM 区域 */
+        for (uint32_t r = 0U; r < vm_configs[i].num_ram_regions; r++) {
+            int32_t ret = hp_vm_add_memory_region(
+                vm_id,
+                vm_configs[i].ram_regions[r].guest_pa,
+                vm_configs[i].ram_regions[r].size,
+                vm_configs[i].ram_regions[r].perm
+            );
+            if (ret != 0) {
+                platform_panic("Failed to add RAM region");
+            }
+        }
+
+        /* 添加设备区域 */
+        for (uint32_t d = 0U; d < vm_configs[i].num_device_regions; d++) {
+            int32_t ret = hp_vm_add_memory_region(
+                vm_id,
+                vm_configs[i].device_regions[d].guest_pa,
+                vm_configs[i].device_regions[d].size,
+                vm_configs[i].device_regions[d].perm
+            );
+            if (ret != 0) {
+                platform_panic("Failed to add device region ret ");
+                uart_puthex((uint64_t)ret);
+                uart_puts("\n");
+            }
+        }
+
+        /* 设置入口点 */
+        hp_vm_set_entry(vm_id, vm_configs[i].entry);
+
+        /* 遍历 CPU 掩码，为每个置位的 CPU 绑定一个 vCPU */
+        uint32_t mask = vm_configs[i].cpu_mask;
+        for (uint32_t cpu = 0U; cpu < HP_CONFIG_MAX_PCPUS; cpu++) {
+            if (mask & (1U << cpu)) {
+            ret = hp_vm_bind_vcpu(vm_id, cpu);
+            if (ret != 0) {
+                platform_panic("Failed to bind vCPU to CPU");
+            }
+        }
+}
+
+        /* 分配中断（例如虚拟定时器） */
+        for (uint32_t irq_idx = 0U; irq_idx < vm_configs[i].num_irqs; irq_idx++) {
+            ret = hp_vm_assign_interrupt(vm_id, vm_configs[i].irqs[irq_idx]);
+            if (ret != 0) {
+                platform_panic("Failed to assign interrupt");
+            }
+        }
     }
 
-    /* 7. 为VM添加内存区域（内部调用hp_stage2_map） */
-    int32_t ret = hp_vm_add_memory_region(vm_id, 
-                                          GUEST_PHYS_START,
-                                          GUEST_SIZE,
-                                          HP_MEM_READ | HP_MEM_WRITE | HP_MEM_EXEC);
-    if (ret != 0) {
-        platform_panic("Failed to add memory region");
-    }
-    // 映射 UART 给 VM，设备内存，读写，不可执行，不可缓存，不可共享
-    hp_vm_add_memory_region(vm_id, UART0_BASE, UART0_SIZE,
-                        HP_MEM_READ | HP_MEM_WRITE | HP_MEM_DEVICE);
-    
-    /* 8. 设置VM入口点 */
-    hp_vm_set_entry(vm_id, GUEST_PHYS_START);
-    
-    /* ===== 第四阶段：创建和运行vCPU ===== */
-    
-    /* 9. 静态绑定：VM0 的 vCPU 运行在 CPU0，VM1 运行在 CPU1 */
-    hp_vm_bind_vcpu(vm_id, 0U);
-    hp_vm_assign_interrupt(vm_id, 27);
-
-    platform_start_secondary_cpus();
+    platform_start_secondary_cpus(all_cpu_mask);
 
         // 创建 VM 后配置中断
     //hp_vm_assign_interrupt(vm_id, 27U);   // 物理定时器（示例）

@@ -19,19 +19,21 @@ INCLUDE_DIRS = include \
                include/hyperpalace \
                include/arch/armv8 \
                $(ARCH_DIR) \
-               $(PLAT_DIR)
+               $(PLAT_DIR) \
+               $(CORE_DIR)
 
 # 源文件
 # 汇编文件
 ASM_SRCS  = $(ARCH_DIR)/boot.S \
             $(ARCH_DIR)/vector.S \
-            $(PLAT_DIR)/boot_plat.S
+#            $(PLAT_DIR)/boot_plat.S
 
 # C 源文件
 C_SRCS    = main.c \
             $(CORE_DIR)/irq.c \
             $(CORE_DIR)/memory.c \
             $(CORE_DIR)/vm.c \
+            $(CORE_DIR)/config.c \
             $(ARCH_DIR)/armv8_arch_ops.c \
             $(ARCH_DIR)/armv8_mmu.c \
             $(ARCH_DIR)/armv8_vcpu.c \
@@ -109,13 +111,16 @@ clean:
 	rm -f include/arch/armv8/asm_defs.h
 # 辅助目标：运行 QEMU (virt, 2 cores)
 # -machine virtualization=on 用来控制进入EL2，否则默认是EL1。
+# -m 1024M: 地址从0x40000000开始计算
+# -d int,exec -D qemu.log
 QEMU     = qemu-system-aarch64
 QEMU_OPTS = -M virt,gic-version=3 -cpu cortex-a57 \
             -machine virtualization=on \
             -nographic \
             -smp 2 \
-            -m 512M \
-            -device loader,addr=0x50000000,file=guest_timer.bin,force-raw=on \
+            -m 1024M \
+            -device loader,addr=0x50000000,file=guest1_timer.bin,force-raw=on \
+            -device loader,addr=0x60000000,file=guest2_timer.bin,force-raw=on \
             -kernel $(TARGET).elf
 
 run: all
@@ -125,20 +130,30 @@ run: all
 debug: all
 	$(QEMU) $(QEMU_OPTS) -s -S
 
-GUEST_SRC = guest_timer.S
-GUEST_ELF = guest_timer.elf
-GUEST_BIN = guest_timer.bin
-GUEST_LST = guest_timer.list
+GUEST1_SRC = guest1_timer.S
+GUEST1_ELF = guest1_timer.elf
+GUEST1_BIN = guest1_timer.bin
+GUEST1_LST = guest1_timer.list
 
-$(GUEST_BIN): $(GUEST_SRC)
-	$(CC) -march=armv8-a -nostdlib -ffreestanding -Ttext=0x50000000 -e _guest_start -o $(GUEST_ELF) $<
-	$(OBJCOPY) -O binary $(GUEST_ELF) $@
-	${OBJDUMP} -D $(GUEST_ELF) > $(GUEST_LST)
+GUEST2_SRC = guest2_timer.S
+GUEST2_ELF = guest2_timer.elf
+GUEST2_BIN = guest2_timer.bin
+GUEST2_LST = guest2_timer.list
 
-guest: $(GUEST_BIN)
+$(GUEST1_BIN): $(GUEST1_SRC)
+	$(CC) -march=armv8-a -nostdlib -ffreestanding -Ttext=0x50000000 -e _guest_start -o $(GUEST1_ELF) $<
+	$(OBJCOPY) -O binary $(GUEST1_ELF) $@
+	${OBJDUMP} -D $(GUEST1_ELF) > $(GUEST1_LST)
+
+$(GUEST2_BIN): $(GUEST2_SRC)
+	$(CC) -march=armv8-a -nostdlib -ffreestanding -Ttext=0x60000000 -e _guest_start -o $(GUEST2_ELF) $<
+	$(OBJCOPY) -O binary $(GUEST2_ELF) $@
+	${OBJDUMP} -D $(GUEST2_ELF) > $(GUEST2_LST)
+
+guest: $(GUEST1_BIN) $(GUEST2_BIN)
 
 guest_clean:
-	rm -f $(GUEST_ELF) $(GUEST_BIN) $(GUEST_LST)
+	rm -f $(GUEST1_ELF) $(GUEST1_BIN) $(GUEST1_LST) $(GUEST2_ELF) $(GUEST2_BIN) $(GUEST2_LST)
 
 # 生成汇编常量头文件
 ASM_DEFS := include/arch/armv8/asm_defs.h
