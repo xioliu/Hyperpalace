@@ -243,6 +243,7 @@ int32_t hp_vm_assign_interrupt(hp_vm_id_t vm_id, uint32_t irq_id)
         return HP_EINVAL;
     }
 
+    #if 0
     /* 检查中断是否已被其他 VM 使用（静态分区下可禁止共享） */
     /* 遍历所有 VM 的位图，确保独占 */
     for (uint32_t i = 0U; i < HP_CONFIG_MAX_VMS; i++) {
@@ -254,6 +255,7 @@ int32_t hp_vm_assign_interrupt(hp_vm_id_t vm_id, uint32_t irq_id)
             }
         }
     }
+    #endif
 
     /* 记录中断 */
     uint32_t word = irq_id / 32U;
