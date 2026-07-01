@@ -52,7 +52,7 @@ void armv8_late_init(void)
     hcr |= HCR_FMO_BIT;
     hcr |= HCR_AMO_BIT;
     //hcr |= HCR_TSC_BIT;
-    hcr |= (0x1 << 13);//WFI trap
+    //hcr |= (0x1 << 13);//WFI trap
     write_hcr_el2(hcr);
 
     /* 主 CPU 的 per‑CPU 虚拟 GIC 初始化 */

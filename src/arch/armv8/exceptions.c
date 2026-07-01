@@ -149,10 +149,10 @@ void lower_exception_handler(struct arch_regs* regs)
             uart_puts("  sp_el1: "); uart_puthex(sp_el1);
     //uart_puts("regs: ");
     //uart_puthex((uint64_t)regs);
-    //uart_puts("\n");
+    uart_puts("\n");
      switch (ec) {
         case 0x1:  // WFI/WFE陷阱
-            //uart_puts("WFI trapped\n");
+            uart_puts("WFI trapped\n");
             regs->elr_el2 += 4;
             break;
         case 0x16: // HVC 指令

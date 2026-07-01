@@ -53,7 +53,6 @@ void gicr_init(uint32_t cpuid)
             *REG_GIC_GICR_IPRIORITYR(i) = ~0U;
     } 
     else if(cpuid == 1) {
-        uart_puts("2222\n");
         *(volatile uint32_t *)(uintptr_t)(0x080c0014ULL) &= ~GICR_WAKER_ProcessorSleep_BIT;
         while(*(volatile uint32_t *)(uintptr_t)(0x080c0014ULL) & GICR_WAKER_ChildrenASleep_BIT);
 
@@ -108,10 +107,10 @@ void gicv3_init_cpu(void)
 {
     uint64_t val;
     uint32_t i, max_lr;
-    uart_puts("gicv3_init_cpu ");
+    //uart_puts("gicv3_init_cpu ");
     uint32_t cpu_id = hp_arch_get_current_cpu_id();
-    uart_puthex(cpu_id);
-    uart_puts("\n");
+    //uart_puthex(cpu_id);
+    //uart_puts("\n");
 
     /* 初始化当前 CPU 的 Redistributor */
     gicr_init(cpu_id);

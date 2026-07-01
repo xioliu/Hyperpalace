@@ -119,8 +119,8 @@ QEMU_OPTS = -M virt,gic-version=3 -cpu cortex-a57 \
             -nographic \
             -smp 2 \
             -m 1024M \
-            -device loader,addr=0x50000000,file=guest1_timer.bin,force-raw=on \
-            -device loader,addr=0x60000000,file=guest2_timer.bin,force-raw=on \
+            -device loader,addr=0x50000000,file=guest0.bin,force-raw=on \
+            -device loader,addr=0x60000000,file=guest1.bin,force-raw=on \
             -kernel $(TARGET).elf
 
 run: all
