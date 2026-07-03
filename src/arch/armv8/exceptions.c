@@ -10,6 +10,8 @@
 #include "armv8_vm.h"
 #include "armv8_vm_priv.h"
 #include "vtimer.h"
+#include "ivc.h"
+#include "errno.h"
 /* ---------- 保留的函数 ---------- */
 #if 0
 /* Stage‑2 缺页处理（待完善） */
@@ -124,6 +126,19 @@ static void handle_hvc(struct arch_regs *regs)
             /* 控制台输出：x1 为字符串指针 */
             uart_puts((const char *)regs->x[1]);
             break;
+        case HVC_IVC_SEND: {
+            uint32_t target_vm = (uint32_t)regs->x[1];
+            uint32_t doorbell = (uint32_t)regs->x[2];
+            hp_vcpu_id_t vcpu_id = hp_vcpu_get_current();
+            if (vcpu_id == HP_INVALID_VCPU_ID) {
+                regs->x[0] = HP_EINVAL;
+                break;
+            }
+            hp_vm_id_t src_vm = hp_vcpu_get_vm_id(vcpu_id);
+            int32_t ret = hp_ivc_send(src_vm, target_vm, doorbell);
+            regs->x[0] = (uint64_t)ret;
+            break;
+        }
         default:
             uart_puts("Unknown HVC call: ");
             uart_puthex(fn);

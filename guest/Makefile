@@ -12,7 +12,7 @@ OBJDUMP = ${CROSS_COMPILE}objdump
 CFLAGS = -march=armv8-a -nostdlib -ffreestanding -Wall -O2 -g -DBASE_ADDR=$(BASE_ADDR)
 LDFLAGS = -nostdlib
 
-SRCS = guest.c uart.c timer.c ivc.c
+SRCS = guest.c uart.c timer.c ivc.c string.c
 OBJS = start.o $(SRCS:.c=.o) vectors.o
 
 TARGET = guest.elf

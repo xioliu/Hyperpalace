@@ -15,13 +15,16 @@
 /* 发送消息到目标 VM */
 static inline void ivc_send(uint32_t target_vm, uint32_t doorbell,
                             const void *data, uint32_t len) {
-    // 将数据复制到共享内存（暂时忽略长度检查）
+    uint8_t *shm = (uint8_t *)IVC_SHM_BASE;
+    shm[0] = 1;  // 标志：有消息
+    // 拷贝消息内容（长度限制）
     const uint8_t *src = (const uint8_t *)data;
-    uint8_t *dst = (uint8_t *)IVC_SHM_BASE;
-    for (uint32_t i = 0; i < len; i++) {
-        dst[i] = src[i];
+    for (uint32_t i = 0; i < len && i < 255; i++) {
+        shm[i + 1] = src[i];
     }
-    // 调用 HVC 发送门铃
+    shm[len + 1] = '\0';  // 字符串终止符（可选）
+
+    // 触发 HVC
     __asm__ volatile("mov x0, #%[hvc_id]\n"
                      "mov x1, %[target]\n"
                      "mov x2, %[doorbell]\n"

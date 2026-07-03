@@ -28,14 +28,16 @@ void armv8_vgic_inject(uint32_t irq_id, uint8_t priority)
         uint64_t lr = read_ich_lr_el2(i);
         if ((lr & (0x3ULL << 62)) == 0U) {   /* State bits [63:62] == 0 (Invalid) */
             uint64_t new_lr = irq_id;                                  /* vINTID[31:0]：Guest看到的中断号 */
-            new_lr |= ((irq_id & 0x1FFFULL) << 32);            /* pINTID[44:32] */
+            //new_lr |= ((irq_id & 0x1FFFULL) << 32);            /* pINTID[44:32] */
             new_lr |= (0x1ULL << 62);                          /* State: Pending */
-            new_lr |= (0x1ULL << 61);                          /* HW[61] */
+            new_lr |= (0x0ULL << 61);                          /* HW[61] */
             new_lr |= (0x1ULL << 60);                          /* Group[60]=1 vIRQ */
             new_lr |= ((uint64_t)priority << 48);             /* priority[55:48] */
             write_ich_lr_el2(i, new_lr);
-            uart_puts("armv8_vgic_inject:");
-            uart_puthex(new_lr);
+            //uart_puts("armv8_vgic_inject:");
+            //uart_puthex(new_lr);
+            uart_puts("LR after: ");
+            uart_puthex(read_ich_lr_el2(i));
             uart_puts("\n");
             return;
         }

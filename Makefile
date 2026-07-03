@@ -34,6 +34,7 @@ C_SRCS    = main.c \
             $(CORE_DIR)/memory.c \
             $(CORE_DIR)/vm.c \
             $(CORE_DIR)/config.c \
+            $(CORE_DIR)/ivc.c \
             $(ARCH_DIR)/armv8_arch_ops.c \
             $(ARCH_DIR)/armv8_mmu.c \
             $(ARCH_DIR)/armv8_vcpu.c \
